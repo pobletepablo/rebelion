@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Stock - Rebelión{% endblock %}{% block content %}
+<div class="page-header"><h1>Stock</h1><a class="button" href="{{url_for('nuevo_producto')}}">+ Nuevo producto</a></div>
+<table><tr><th>Producto</th><th>Categoría</th><th>Stock</th><th>Costo</th><th>Venta</th><th>Margen</th><th>Movimiento / Registrar Pérdida</th></tr>
+{% for p in productos %}<tr><td>{{p["nombre"]}}</td><td>{{p["categoria"]}}</td><td>
+{% if p["stock"]<=p["stock_minimo"] %}<strong class="danger-text">{{p["stock"]}} {{p["unidad"]}}</strong>{% else %}{{p["stock"]}} {{p["unidad"]}}{% endif %}
+</td><td>{{p["costo"]|money}}</td><td>{{p["precio"]|money}}</td><td>{{(p["precio"]-p["costo"])|money}}</td><td>
+<form method="POST" action="{{url_for('modificar_stock',producto_id=p['id'])}}" class="inline-form">
+<input type="number" name="cantidad" step="0.01" min="0.01" placeholder="Cant." required style="width:70px;">
+<select name="tipo">
+    <option value="entrada">Entrada</option>
+    <option value="salida">Salida</option>
+    <option value="perdida">🔥 Pérdida (roto/quemado)</option>
+    <option value="ajuste">Ajustar</option>
+</select>
+<input type="text" name="motivo" placeholder="Motivo (ej: roto, vencido)"><button>OK</button></form></td></tr>{% endfor %}</table>{% endblock %}

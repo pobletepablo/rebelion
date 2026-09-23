@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Nuevo producto{% endblock %}{% block content %}
+<h1>Nuevo producto</h1><form method="POST" class="form">
+<label>Nombre</label><input name="nombre" required><label>Categoría</label>
+<select name="categoria"><option>Bebida</option><option>Comida</option><option>Otro</option></select>
+<label>Costo unitario</label><input type="number" name="costo" step="0.01" min="0" required>
+<label>Precio de venta</label><input type="number" name="precio" step="0.01" min="0" required>
+<label>Stock inicial</label><input type="number" name="stock" step="0.01" min="0" required>
+<label>Stock mínimo</label><input type="number" name="stock_minimo" step="0.01" min="0" value="5" required>
+<label>Unidad</label><select name="unidad"><option>unidad</option><option>lata</option><option>botella</option><option>vaso</option><option>porción</option></select>
+<button class="button">Guardar producto</button></form>{% endblock %}

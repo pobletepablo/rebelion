@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Movimientos - Rebelión{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Movimientos del Mes</h1>
+    <a href="{{ url_for('exportar_movimientos', mes=mes) }}" class="button excel">📥 Exportar a Excel</a>
+</div>
+
+<div class="section">
+    <form method="GET" action="{{ url_for('movimientos') }}" class="inline-form" style="margin-bottom: 20px;">
+        <label style="margin-top:0; align-self:center;">Seleccionar Mes:</label>
+        <input type="month" name="mes" value="{{ mes }}" required>
+        <button class="button secondary">Filtrar</button>
+    </form>
+
+    <table>
+        <tr>
+            <th>Fecha / Hora</th>
+            <th>Producto</th>
+            <th>Tipo</th>
+            <th>Cantidad</th>
+            <th>Motivo / Evento</th>
+        </tr>
+        {% for m in movimientos %}
+        <tr>
+            <td>{{ m["fecha_hora"] }}</td>
+            <td><strong>{{ m["producto_nombre"] }}</strong></td>
+            <td>
+                {% if m["tipo"] == "entrada" %}<span style="color:#4caf50;">▲ Entrada</span>
+                {% elif m["tipo"] == "salida" %}<span style="color:#f44336;">▼ Salida</span>
+                {% elif m["tipo"] == "venta" %}<span style="color:#2196f3;">🛒 Venta</span>
+                {% elif m["tipo"] == "perdida" %}<span style="color:#ff4d55; font-weight:bold;">🔥 Pérdida</span>
+                {% else %}<span style="color:#ff9800;">⚙ Ajuste</span>{% endif %}
+            </td>
+            <td>{{ m["cantidad"] }} {{ m["unidad"] }}</td>
+            <td>
+                {{ m["motivo"] }}
+                {% if m["evento_nombre"] %} <em>({{ m["evento_nombre"] }})</em>{% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5">No hay movimientos registrados en este mes.</td></tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

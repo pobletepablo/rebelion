@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container my-4" style="max-width: 500px;">
+    <h3 class="mb-3">Registrar Pérdida / Merma</h3>
+    <form action="/perdida" method="POST" class="card card-body shadow-sm">
+        <div class="mb-3">
+            <label for="producto_id" class="form-label">Producto:</label>
+            <select name="producto_id" class="form-select" required>
+                {% for p in productos %}
+                    <option value="{{ p[0] }}">{{ p[1] }} (Stock actual: {{ p[2] }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="cantidad" class="form-label">Cantidad Perdida:</label>
+            <input type="number" name="cantidad" class="form-control" min="1" required>
+        </div>
+        <div class="mb-3">
+            <label for="motivo" class="form-label">Motivo de la Pérdida:</label>
+            <textarea name="motivo" class="form-control" rows="3" placeholder="Ej. Dañado, vencido, rotura..." required></textarea>
+        </div>
+        <button type="submit" class="btn btn-danger">Registrar Pérdida</button>
+    </form>
+</div>
+{% endblock %}

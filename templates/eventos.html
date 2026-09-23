@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}Eventos{% endblock %}{% block content %}
+<h1>Eventos</h1><div class="section"><h2>Nuevo evento</h2><form method="POST" action="{{url_for('nuevo_evento')}}" class="form">
+<label>Nombre</label><input name="nombre" placeholder="Ej: Festival Rebelión" required>
+<label>Fecha</label><input type="date" name="fecha" required><label>Notas</label><textarea name="notas"></textarea>
+<button class="button">Crear evento</button></form></div>
+<div class="section"><h2>Historial</h2><table><tr><th>Evento</th><th>Fecha</th><th>Estado</th><th>Recaudación</th><th></th></tr>
+{% for e in eventos %}<tr><td>{{e["nombre"]}}</td><td>{{e["fecha"]}}</td><td>{{e["estado"]}}</td><td>{{e["recaudacion"]|money}}</td>
+<td><a class="button small" href="{{url_for('evento',evento_id=e['id'])}}">Ver</a></td></tr>{% endfor %}</table></div>{% endblock %}

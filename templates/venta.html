@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Nueva venta{% endblock %}{% block content %}
+<h1>Nueva venta</h1><h2>{{evento["nombre"]}}</h2><form method="POST" class="form">
+<label>Producto</label><select name="producto_id" required>{% for p in productos %}
+<option value="{{p['id']}}">{{p["nombre"]}} — Stock: {{p["stock"]}} — {{p["precio"]|money}}</option>{% endfor %}</select>
+<label>Cantidad</label><input type="number" name="cantidad" min="0.01" step="0.01" value="1" required>
+<label>Medio de pago</label><select name="medio_pago"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="mercado_pago">Mercado Pago</option><option value="otro">Otro</option></select>
+<button class="button">Registrar venta</button></form>{% endblock %}

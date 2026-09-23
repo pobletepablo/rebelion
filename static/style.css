@@ -1,0 +1,40 @@
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#111;color:#eee}
+header{background:#000;border-bottom:2px solid #e21b23;padding:15px 30px;display:flex;align-items:center;justify-content:space-between}
+.logo-container{display:flex;align-items:center;text-decoration:none}
+.nav-logo{height:45px;width:auto;object-fit:contain}
+nav a{color:white;text-decoration:none;margin-left:20px;font-weight:bold}
+nav a:hover{color:#e21b23}
+main{max-width:1200px;margin:auto;padding:30px}
+h1{margin-bottom:30px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin-bottom:30px}
+.card{background:#1d1d1d;border:1px solid #333;padding:25px;border-radius:8px}
+.card span{display:block;color:#aaa;margin-bottom:10px}
+.card strong{font-size:25px}
+.section{background:#1a1a1a;padding:25px;margin-top:25px;border-radius:8px}
+table{width:100%;border-collapse:collapse;margin-top:15px}
+th,td{padding:12px;border-bottom:1px solid #333;text-align:left}
+th{color:#aaa}
+.button,button{background:#e21b23;color:white;border:none;padding:11px 18px;border-radius:5px;cursor:pointer;text-decoration:none;display:inline-block;font-weight:bold}
+.button:hover,button:hover{background:#ff3038}
+.button.small{padding:7px 12px;font-size:0.9em}
+.button.secondary{background:#2a2a2a;border:1px solid #444;color:#eee}
+.button.secondary:hover{background:#3a3a3a}
+.button.excel{background:#1d6f42;color:white}
+.button.excel:hover{background:#21884f}
+.button.danger{background:#7b1115}
+.danger-text{color:#ff4d55}
+.alert{padding:15px;margin-bottom:20px;border-radius:5px}
+.alert.success{background:#164d28}
+.alert.danger{background:#5c1518}
+.form{max-width:600px}
+.form label{display:block;margin-top:15px;margin-bottom:6px}
+input,select,textarea{width:100%;padding:11px;background:#222;border:1px solid #444;color:white;border-radius:5px}
+textarea{min-height:100px}
+.form button{margin-top:20px}
+.inline-form{display:flex;gap:5px}
+.inline-form input,.inline-form select{width:auto}
+.page-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px}
+.export-bar{display:flex;gap:10px;align-items:center;margin-top:15px}
+@media(max-width:800px){.cards{grid-template-columns:1fr 1fr}header{flex-direction:column;gap:15px}.nav-logo{height:35px}table{font-size:13px}.inline-form{flex-direction:column}}
+@media(max-width:500px){.cards{grid-template-columns:1fr}main{padding:15px}}
