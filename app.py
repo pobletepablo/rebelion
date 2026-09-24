@@ -14,6 +14,13 @@ init_db()
 def money(value):
     return f"${value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+@app.template_filter("int_fmt")
+def int_fmt(value):
+    try:
+        return int(round(float(value)))
+    except (ValueError, TypeError):
+        return 0
+
 @app.route("/")
 def index():
     db = get_db()
@@ -29,20 +36,32 @@ def index():
     """).fetchone()
     
     ventas_evento = margen_evento = 0
+    efectivo_evento = transferencia_evento = otros_evento = 0
     if evento:
         ventas_evento = db.execute(
             "SELECT COALESCE(SUM(total),0) FROM ventas WHERE evento_id=?",
             (evento["id"],)).fetchone()[0]
+            
         margen_evento = db.execute("""
             SELECT COALESCE(SUM(vi.cantidad*(vi.precio_unitario-vi.costo_unitario)),0)
             FROM venta_items vi JOIN ventas v ON v.id=vi.venta_id
             WHERE v.evento_id=?
         """, (evento["id"],)).fetchone()[0]
-        
+
+        efectivo_evento = db.execute(
+            "SELECT COALESCE(SUM(total),0) FROM ventas WHERE evento_id=? AND medio_pago='efectivo'",
+            (evento["id"],)).fetchone()[0]
+
+        transferencia_evento = db.execute(
+            "SELECT COALESCE(SUM(total),0) FROM ventas WHERE evento_id=? AND medio_pago IN ('transferencia', 'mercado_pago')",
+            (evento["id"],)).fetchone()[0]
+
+        otros_evento = db.execute(
+            "SELECT COALESCE(SUM(total),0) FROM ventas WHERE evento_id=? AND medio_pago NOT IN ('efectivo', 'transferencia', 'mercado_pago')",
+            (evento["id"],)).fetchone()[0]
+
     valor_stock = sum(p["stock"] * p["costo"] for p in productos)
     total_unidades_stock = sum(p["stock"] for p in productos)
-    
-    # Obtener mes actual formato YYYY-MM
     mes_actual = datetime.datetime.now().strftime("%Y-%m")
     
     # Pérdidas del mes actual
@@ -67,7 +86,11 @@ def index():
     db.close()
     return render_template("index.html", productos=productos, stock_bajo=stock_bajo,
                            evento=evento, ventas_evento=ventas_evento,
-                           margen_evento=margen_evento, valor_stock=valor_stock,
+                           margen_evento=margen_evento,
+                           efectivo_evento=efectivo_evento,
+                           transferencia_evento=transferencia_evento,
+                           otros_evento=otros_evento,
+                           valor_stock=valor_stock,
                            total_unidades_stock=total_unidades_stock,
                            perdidas_mes=perdidas_mes, ultimos_eventos=ultimos_eventos,
                            mes_actual=mes_actual)
@@ -84,7 +107,8 @@ def nuevo_producto():
     if request.method=="POST":
         datos=(request.form["nombre"].strip(),request.form["categoria"],
                float(request.form["costo"]),float(request.form["precio"]),
-               float(request.form["stock"]),float(request.form["stock_minimo"]),
+               int(round(float(request.form["stock"]))),
+               int(round(float(request.form["stock_minimo"]))),
                request.form["unidad"])
         db=get_db()
         cur=db.execute("""INSERT INTO productos
@@ -100,7 +124,7 @@ def nuevo_producto():
 
 @app.route("/productos/<int:producto_id>/stock", methods=["POST"])
 def modificar_stock(producto_id):
-    cantidad=float(request.form["cantidad"]); tipo=request.form["tipo"]
+    cantidad=int(round(float(request.form["cantidad"]))); tipo=request.form["tipo"]
     motivo=request.form.get("motivo","")
     db=get_db()
     p=db.execute("SELECT * FROM productos WHERE id=?",(producto_id,)).fetchone()
@@ -164,41 +188,80 @@ def evento(evento_id):
     db=get_db()
     evento=db.execute("SELECT * FROM eventos WHERE id=?",(evento_id,)).fetchone()
     if not evento: db.close(); return "Evento no encontrado",404
+    
     ventas=db.execute("SELECT * FROM ventas WHERE evento_id=? ORDER BY id DESC",(evento_id,)).fetchall()
+    
     pv=db.execute("""SELECT p.nombre,p.unidad,SUM(vi.cantidad) cantidad,
                      SUM(vi.cantidad*vi.precio_unitario) total,
                      SUM(vi.cantidad*(vi.precio_unitario-vi.costo_unitario)) margen
                      FROM venta_items vi JOIN ventas v ON v.id=vi.venta_id
                      JOIN productos p ON p.id=vi.producto_id
                      WHERE v.evento_id=? GROUP BY p.id ORDER BY total DESC""",(evento_id,)).fetchall()
+                     
     recaudacion=sum(v["total"] for v in ventas); margen=sum(p["margen"] for p in pv)
+    
+    # Desglose de medios de pago
+    efectivo = sum(v["total"] for v in ventas if v["medio_pago"] == "efectivo")
+    transferencia = sum(v["total"] for v in ventas if v["medio_pago"] in ["transferencia", "mercado_pago"])
+    otros = sum(v["total"] for v in ventas if v["medio_pago"] not in ["efectivo", "transferencia", "mercado_pago"])
+    
+    # Pérdidas asociadas a este evento
+    perdidas_evento = db.execute("""
+        SELECT m.*, p.nombre as producto_nombre, p.unidad, (m.cantidad * p.costo) as costo_total
+        FROM movimientos m
+        JOIN productos p ON p.id = m.producto_id
+        WHERE m.evento_id = ? AND m.tipo = 'perdida'
+        ORDER BY m.id DESC
+    """, (evento_id,)).fetchall()
+    
+    valor_total_perdidas = sum(p["costo_total"] for p in perdidas_evento)
+
     db.close()
     return render_template("evento.html",evento=evento,ventas=ventas,
-                           productos_vendidos=pv,recaudacion=recaudacion,margen=margen)
+                           productos_vendidos=pv,recaudacion=recaudacion,margen=margen,
+                           efectivo=efectivo, transferencia=transferencia, otros=otros,
+                           perdidas_evento=perdidas_evento, valor_total_perdidas=valor_total_perdidas)
 
 @app.route("/eventos/<int:evento_id>/venta",methods=["GET","POST"])
 def nueva_venta(evento_id):
     db=get_db()
     evento=db.execute("SELECT * FROM eventos WHERE id=?",(evento_id,)).fetchone()
     if request.method=="POST":
-        producto_id=int(request.form["producto_id"]); cantidad=float(request.form["cantidad"])
-        medio=request.form["medio_pago"]
+        producto_id=int(request.form["producto_id"])
+        cantidad=int(round(float(request.form["cantidad"])))
+        tipo_registro=request.form.get("tipo_registro", "venta")
+        medio=request.form.get("medio_pago", "efectivo")
+        motivo=request.form.get("motivo", "")
+        
         p=db.execute("SELECT * FROM productos WHERE id=?",(producto_id,)).fetchone()
         if not p or cantidad<=0 or p["stock"]<cantidad:
             db.close(); flash("Producto inexistente, cantidad inválida o stock insuficiente.","danger")
             return redirect(request.url)
-        total=cantidad*p["precio"]
-        cur=db.execute("INSERT INTO ventas(evento_id,medio_pago,total) VALUES(?,?,?)",
-                       (evento_id,medio,total))
-        db.execute("""INSERT INTO venta_items
-            (venta_id,producto_id,cantidad,costo_unitario,precio_unitario)
-            VALUES(?,?,?,?,?)""",(cur.lastrowid,producto_id,cantidad,p["costo"],p["precio"]))
-        db.execute("UPDATE productos SET stock=stock-? WHERE id=?",(cantidad,producto_id))
-        db.execute("""INSERT INTO movimientos(producto_id,tipo,cantidad,motivo,evento_id)
-                      VALUES (?,'venta',?,'Venta',?)""",(producto_id,cantidad,evento_id))
-        db.commit(); db.close()
-        flash("Venta registrada.","success")
-        return redirect(url_for("evento",evento_id=evento_id))
+            
+        if tipo_registro == "perdida":
+            # Registrar Pérdida asociada al evento
+            db.execute("UPDATE productos SET stock=stock-? WHERE id=?",(cantidad,producto_id))
+            db.execute("""INSERT INTO movimientos(producto_id,tipo,cantidad,motivo,evento_id)
+                          VALUES (?,'perdida',?,?,?)""",
+                       (producto_id, cantidad, motivo or f"Pérdida en evento {evento['nombre']}", evento_id))
+            db.commit(); db.close()
+            flash("Pérdida registrada en el evento correctamente.","warning")
+            return redirect(url_for("evento",evento_id=evento_id))
+        else:
+            # Registrar Venta normal
+            total=cantidad*p["precio"]
+            cur=db.execute("INSERT INTO ventas(evento_id,medio_pago,total) VALUES(?,?,?)",
+                           (evento_id,medio,total))
+            db.execute("""INSERT INTO venta_items
+                (venta_id,producto_id,cantidad,costo_unitario,precio_unitario)
+                VALUES(?,?,?,?,?)""",(cur.lastrowid,producto_id,cantidad,p["costo"],p["precio"]))
+            db.execute("UPDATE productos SET stock=stock-? WHERE id=?",(cantidad,producto_id))
+            db.execute("""INSERT INTO movimientos(producto_id,tipo,cantidad,motivo,evento_id)
+                          VALUES (?,'venta',?,'Venta en evento',?)""",(producto_id,cantidad,evento_id))
+            db.commit(); db.close()
+            flash("Venta registrada.","success")
+            return redirect(url_for("evento",evento_id=evento_id))
+
     productos=db.execute("SELECT * FROM productos WHERE activo=1 ORDER BY nombre").fetchall()
     db.close()
     return render_template("venta.html",evento=evento,productos=productos)
@@ -273,7 +336,7 @@ def exportar_movimientos():
             m["fecha_hora"],
             m["producto"],
             m["tipo"].capitalize(),
-            m["cantidad"],
+            int(round(m["cantidad"])),
             m["unidad"],
             m["motivo"] or "",
             m["evento"] or "-"
@@ -316,18 +379,22 @@ def exportar_evento(evento_id):
         ORDER BY total DESC
     """, (evento_id,)).fetchall()
 
+    efectivo = sum(v["total"] for v in ventas if v["medio_pago"] == "efectivo")
+    transferencia = sum(v["total"] for v in ventas if v["medio_pago"] in ["transferencia", "mercado_pago"])
+    total_recaudado = sum(v["total"] for v in ventas)
+
     db.close()
 
     wb = openpyxl.Workbook()
     ws_prod = wb.active
     ws_prod.title = "Resumen por Producto"
-    ws_prod.append(["Producto", "Categoría", "Cantidad Vendida", "Unidad", "Total Recaudado ($)", "Margen ($)"])
+    ws_prod.append(["Producto", "Categoría", "Cantidad Vendida", "Unidad", "Total Recaudado ($)", "Margen de Ganancia ($)"])
 
     for p in pv:
         ws_prod.append([
             p["nombre"],
             p["categoria"],
-            p["cantidad"],
+            int(round(p["cantidad"])),
             p["unidad"],
             p["total"],
             p["margen"]
@@ -344,6 +411,12 @@ def exportar_evento(evento_id):
             v["medio_pago"].capitalize(),
             v["total"]
         ])
+    ws_ventas.append([])
+    ws_ventas.append(["DESGLOSE DE MEDIOS DE PAGO"])
+    ws_ventas.append(["Efectivo ($)", efectivo])
+    ws_ventas.append(["Transferencia / MP ($)", transferencia])
+    ws_ventas.append(["TOTAL RECAUDADO ($)", total_recaudado])
+
     _estilar_excel(ws_ventas, f"DETALLE DE VENTAS - {evento['nombre']}")
 
     output = io.BytesIO()
