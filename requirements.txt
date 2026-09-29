@@ -1,3 +1,4 @@
 Flask==3.1.2
 openpyxl==3.1.5
 waitress==3.0.2
+gunicorn
