@@ -1,16 +1,205 @@
-{% extends "base.html" %}{% block title %}{{evento["nombre"]}}{% endblock %}{% block content %}
+{% extends "base.html" %}
+{% block title %}{{evento["nombre"]}}{% endblock %}
+{% block content %}
 <div class="page-header">
-    <h1>{{evento["nombre"]}}</h1>
-    <a href="{{ url_for('exportar_evento', evento_id=evento['id']) }}" class="button excel">📥 Exportar Evento a Excel</a>
+    <div>
+        <span class="status-badge {{ 'is-open' if evento['estado']=='abierto' else '' }}"><span class="dot"></span>{{ 'Vigente' if evento["estado"] == "abierto" else 'Cerrado' }}</span>
+        <h1>{{evento["nombre"]}}</h1>
+        <p class="muted">{{evento["fecha"]}}</p>
+    </div>
+    <a href="{{ url_for('exportar_evento', evento_id=evento['id']) }}" class="button excel">📥 Exportar evento</a>
 </div>
-<p>Fecha: {{evento["fecha"]}}</p>
-<div class="cards">
-<div class="card"><span>Recaudación</span><strong>{{recaudacion|money}}</strong></div>
-<div class="card"><span>Margen</span><strong>{{margen|money}}</strong></div></div>
-{% if evento["estado"]=="abierto" %}<a class="button" href="{{url_for('nueva_venta',evento_id=evento['id'])}}">+ Registrar venta</a>
-<form method="POST" action="{{url_for('cerrar_evento',evento_id=evento['id'])}}" style="display:inline"><button class="button danger" onclick="return confirm('¿Cerrar evento?')">Cerrar evento</button></form>{% endif %}
-<div class="section"><h2>Productos vendidos</h2><table><tr><th>Producto</th><th>Cantidad</th><th>Ventas</th><th>Margen</th></tr>
-{% for p in productos_vendidos %}<tr><td>{{p["nombre"]}}</td><td>{{p["cantidad"]}}</td><td>{{p["total"]|money}}</td><td>{{p["margen"]|money}}</td></tr>{% endfor %}</table></div>
-<div class="section"><h2>Ventas</h2><table><tr><th>ID</th><th>Hora</th><th>Medio de pago</th><th>Total</th></tr>
-{% for v in ventas %}<tr><td>#{{v["id"]}}</td><td>{{v["fecha_hora"]}}</td><td>{{v["medio_pago"]}}</td><td>{{v["total"]|money}}</td></tr>{% endfor %}</table></div>
+
+<div class="hero-stat">
+    <span>💰 Caja del evento</span>
+    <strong>{{caja_evento|money}}</strong>
+    <small>Recaudación + bono − gastos</small>
+</div>
+
+<div class="stat-row">
+    <div class="card">
+        <span>Recaudación</span>
+        <strong>{{recaudacion|money}}</strong>
+    </div>
+    <div class="card">
+        <span>💵 Efectivo</span>
+        <strong>{{efectivo|money}}</strong>
+    </div>
+    <div class="card">
+        <span>💳 Transferencia</span>
+        <strong>{{transferencia|money}}</strong>
+    </div>
+    <div class="card">
+        <span>💸 Gastos del evento</span>
+        <strong class="danger-text">{{total_gastos_evento|money}}</strong>
+    </div>
+    <div class="card">
+        <span>Resultado del evento</span>
+        <strong>{{resultado_evento|money}}</strong>
+        <small>Ganancia después de costos, pérdidas, gastos y bono</small>
+    </div>
+</div>
+
+{% if evento["estado"] == "abierto" %}
+<div class="action-bar">
+    <a class="button" href="{{url_for('nueva_venta',evento_id=evento['id'])}}">＋ Registrar venta</a>
+    <a class="button secondary danger-outline" href="{{url_for('nueva_perdida',evento_id=evento['id'])}}">Registrar pérdida</a>
+    <form method="POST" action="{{url_for('cerrar_evento',evento_id=evento['id'])}}">
+        <button class="button danger" onclick="return confirm('¿Cerrar evento?')">Cerrar evento</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="section">
+    <div class="page-header">
+        <div>
+            <h2>👥 Responsables del evento</h2>
+            <p class="muted">Caja, cocina y responsables generales, organizados por turno.</p>
+        </div>
+    </div>
+    {% if responsables %}
+    <div class="responsive-table">
+    <table>
+        <tr><th>Persona</th><th>Rol</th><th>Desde</th><th>Hasta</th><th>Notas</th><th></th></tr>
+        {% for r in responsables %}
+        <tr>
+            <td><strong>{{r["nombre"]}}</strong></td>
+            <td><span class="role-badge">{{r["rol"]}}</span></td>
+            <td>{{r["hora_inicio"] or "—"}}</td>
+            <td>{{r["hora_fin"] or "—"}}</td>
+            <td>{{r["notas"] or "—"}}</td>
+            <td><form method="POST" action="{{url_for('eliminar_responsable',evento_id=evento['id'],responsable_id=r['id'])}}" onsubmit="return confirm('¿Quitar este responsable?')"><button class="button small danger-outline" type="submit">×</button></form></td>
+        </tr>
+        {% endfor %}
+    </table>
+    </div>
+    {% else %}<p class="muted">No hay responsables cargados. Los eventos nuevos requieren al menos uno.</p>{% endif %}
+
+    {% if evento["estado"] == "abierto" %}
+    <form method="POST" action="{{url_for('agregar_responsable',evento_id=evento['id'])}}" class="responsable-inline-form">
+        <input name="nombre" placeholder="Nombre" required>
+        <select name="rol"><option>General</option><option>Caja</option><option>Cocina</option></select>
+        <input type="time" name="hora_inicio" aria-label="Inicio">
+        <input type="time" name="hora_fin" aria-label="Fin">
+        <input name="notas" placeholder="Nota (opcional)">
+        <button class="button">＋ Agregar</button>
+    </form>
+    {% endif %}
+</div>
+
+<div class="section">
+    <div class="page-header">
+        <div>
+            <h2>🎟 Bono Rebelión</h2>
+            {% if evento["estado"] == "cerrado" %}
+            <p class="muted">Se registra al cierre del evento.</p>
+            {% else %}
+            <p class="muted">Se habilitará cuando cierres el evento.</p>
+            {% endif %}
+        </div>
+        <strong class="section-amount">{{evento["bono_rebelion"]|money}}</strong>
+    </div>
+    {% if evento["estado"] == "cerrado" %}
+    <form method="POST" action="{{url_for('actualizar_bono', evento_id=evento['id'])}}" class="inline-form bonus-form">
+        <div class="input-prefix">
+            <span>$</span>
+            <input type="number" name="bono_rebelion" min="0" step="0.01" value="{{evento["bono_rebelion"]}}">
+        </div>
+        <button class="button secondary">Guardar bono de cierre</button>
+    </form>
+    {% endif %}
+</div>
+
+<div class="section">
+    <div class="page-header">
+        <div>
+            <h2>💸 Gastos del evento</h2>
+            <p class="muted">Gastos de caja asociados exclusivamente a este evento.</p>
+        </div>
+        <strong class="section-amount">{{total_gastos_evento|money}}</strong>
+    </div>
+    {% if gastos_evento %}
+    <table>
+        <tr><th>Fecha / Hora</th><th>Concepto</th><th>Categoría</th><th>Monto</th><th>Notas</th></tr>
+        {% for g in gastos_evento %}
+        <tr><td>{{g["fecha_hora"]}}</td><td><strong>{{g["concepto"]}}</strong></td><td>{{g["categoria"]}}</td><td class="danger-text">{{g["monto"]|money}}</td><td>{{g["notas"]}}</td></tr>
+        {% endfor %}
+    </table>
+    {% else %}<p class="muted">No hay gastos asociados a este evento.</p>{% endif %}
+</div>
+
+<div class="section">
+    <h2>Productos vendidos</h2>
+    <table>
+        <tr>
+            <th>Producto</th>
+            <th>Cantidad</th>
+            <th>Total recaudado</th>
+            <th>Margen</th>
+        </tr>
+        {% for p in productos_vendidos %}
+        <tr>
+            <td>{{p["nombre"]}}</td>
+            <td>{{p["cantidad"]|int_fmt}} {{p["unidad"]}}</td>
+            <td>{{p["total"]|money}}</td>
+            <td>{{p["margen"]|money}}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">Aún no se registraron ventas en este evento.</td></tr>
+        {% endfor %}
+    </table>
+</div>
+
+<div class="section">
+    <h2>Pérdidas</h2>
+    {% if perdidas_evento %}
+    <table>
+        <tr>
+            <th>Producto</th>
+            <th>Cantidad</th>
+            <th>Costo perdido</th>
+            <th>Motivo</th>
+            <th>Fecha / Hora</th>
+        </tr>
+        {% for pe in perdidas_evento %}
+        <tr>
+            <td><strong>{{pe["producto_nombre"]}}</strong></td>
+            <td class="danger-text">{{pe["cantidad"]|int_fmt}} {{pe["unidad"]}}</td>
+            <td>{{pe["costo_total"]|money}}</td>
+            <td>{{pe["motivo"]}}</td>
+            <td>{{pe["fecha_hora"]}}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <p class="loss-total">Costo total de pérdidas: <strong>{{valor_total_perdidas|money}}</strong></p>
+    {% else %}
+    <p class="muted">No se han registrado pérdidas en este evento.</p>
+    {% endif %}
+</div>
+
+<div class="section">
+    <h2>Historial de ventas</h2>
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Hora</th>
+            <th>Medio de pago</th>
+            <th>Total</th>
+        </tr>
+        {% for v in ventas %}
+        <tr>
+            <td>#{{v["id"]}}</td>
+            <td>{{v["fecha_hora"]}}</td>
+            <td>
+                {% if v["medio_pago"] == "efectivo" %}💵 Efectivo
+                {% elif v["medio_pago"] == "transferencia" %}💳 Transferencia
+                {% else %}{{v["medio_pago"]|capitalize}} <span class="muted">(histórico)</span>{% endif %}
+            </td>
+            <td><strong>{{v["total"]|money}}</strong></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">No hay ventas registradas.</td></tr>
+        {% endfor %}
+    </table>
+</div>
 {% endblock %}

@@ -1,8 +1,116 @@
-{% extends "base.html" %}{% block title %}Eventos{% endblock %}{% block content %}
-<h1>Eventos</h1><div class="section"><h2>Nuevo evento</h2><form method="POST" action="{{url_for('nuevo_evento')}}" class="form">
-<label>Nombre</label><input name="nombre" placeholder="Ej: Festival Rebelión" required>
-<label>Fecha</label><input type="date" name="fecha" required><label>Notas</label><textarea name="notas"></textarea>
-<button class="button">Crear evento</button></form></div>
-<div class="section"><h2>Historial</h2><table><tr><th>Evento</th><th>Fecha</th><th>Estado</th><th>Recaudación</th><th></th></tr>
-{% for e in eventos %}<tr><td>{{e["nombre"]}}</td><td>{{e["fecha"]}}</td><td>{{e["estado"]}}</td><td>{{e["recaudacion"]|money}}</td>
-<td><a class="button small" href="{{url_for('evento',evento_id=e['id'])}}">Ver</a></td></tr>{% endfor %}</table></div>{% endblock %}
+{% extends "base.html" %}
+{% block title %}Eventos - Rebelión{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Eventos</h1>
+        <p class="muted">Primero el evento vigente, después la creación y el historial.</p>
+    </div>
+</div>
+
+{% if evento %}
+<div class="section current-event">
+    <div class="page-header">
+        <div>
+            <span class="status-badge is-open"><span class="dot"></span>Vigente</span>
+            <h2>{{evento["nombre"]}}</h2>
+            <p class="muted">{{evento["fecha"]}}</p>
+        </div>
+        <div style="text-align:right;">
+            <span class="muted" style="display:block; font-size:.85rem;">Recaudación</span>
+            <strong style="font-size:1.4rem;">{{evento["recaudacion"]|money}}</strong>
+        </div>
+    </div>
+    <a class="button" href="{{url_for('evento',evento_id=evento['id'])}}" style="margin-top:15px; display:inline-block;">Abrir evento</a>
+</div>
+{% endif %}
+
+<div class="section">
+    <h2>➕ Crear evento</h2>
+    <form method="POST" action="{{url_for('nuevo_evento')}}" class="form">
+        <label>Nombre</label>
+        <input name="nombre" placeholder="Ej: Festival Rebelión" required>
+        <label>Fecha</label>
+        <input type="date" name="fecha" value="{{hoy}}" required>
+        <label>Notas</label>
+        <textarea name="notas" placeholder="Opcional"></textarea>
+
+        <div class="responsables-builder">
+            <div class="page-header">
+                <div>
+                    <h3>Responsables</h3>
+                    <p class="muted">Al menos una persona por evento. Podés asignar turnos de caja, cocina o un responsable general.</p>
+                </div>
+                <button type="button" class="button secondary small" id="agregar-responsable">＋ Agregar responsable</button>
+            </div>
+            <div id="responsables-list">
+                <div class="responsable-row">
+                    <input name="responsable_nombre" placeholder="Nombre" required>
+                    <select name="responsable_rol">
+                        <option>General</option><option>Caja</option><option>Cocina</option>
+                    </select>
+                    <input type="time" name="responsable_inicio" aria-label="Inicio">
+                    <input type="time" name="responsable_fin" aria-label="Fin">
+                    <input name="responsable_notas" placeholder="Nota (opcional)">
+                    <button type="button" class="button small danger-outline quitar-responsable" title="Quitar">×</button>
+                </div>
+            </div>
+        </div>
+        <button class="button">Crear evento</button>
+    </form>
+</div>
+<script>
+(function(){
+  const list=document.getElementById('responsables-list');
+  const add=document.getElementById('agregar-responsable');
+  function row(){
+    const el=document.createElement('div');
+    el.className='responsable-row';
+    el.innerHTML=`<input name="responsable_nombre" placeholder="Nombre">
+      <select name="responsable_rol"><option>General</option><option>Caja</option><option>Cocina</option></select>
+      <input type="time" name="responsable_inicio" aria-label="Inicio">
+      <input type="time" name="responsable_fin" aria-label="Fin">
+      <input name="responsable_notas" placeholder="Nota (opcional)">
+      <button type="button" class="button small danger-outline quitar-responsable" title="Quitar">×</button>`;
+    return el;
+  }
+  add.addEventListener('click',()=>list.appendChild(row()));
+  list.addEventListener('click',(e)=>{
+    if(e.target.classList.contains('quitar-responsable')){
+      const rows=list.querySelectorAll('.responsable-row');
+      if(rows.length>1) e.target.closest('.responsable-row').remove();
+    }
+  });
+})();
+</script>
+
+<div class="section">
+    <div class="page-header">
+        <h2>Historial de eventos</h2>
+    </div>
+    {% if eventos %}
+    <table>
+        <tr>
+            <th>Evento</th>
+            <th>Fecha</th>
+            <th>Bono</th>
+            <th>Recaudación</th>
+            <th>Estado</th>
+            <th></th>
+        </tr>
+        {% for e in eventos %}
+        <tr>
+            <td><strong>{{e["nombre"]}}</strong></td>
+            <td>{{e["fecha"]}}</td>
+            <td>{{e["bono_rebelion"]|money}}</td>
+            <td>{{e["recaudacion"]|money}}</td>
+            <td><span class="status-badge"><span class="dot"></span>Cerrado</span></td>
+            <td><a class="button small" href="{{url_for('evento',evento_id=e['id'])}}">Ver</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="muted">Todavía no hay eventos cerrados.</p>
+    {% endif %}
+</div>
+{% endblock %}

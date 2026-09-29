@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Productos eliminados - Rebelión{% endblock %}{% block content %}
+<div class="page-header"><h1>Productos eliminados</h1><a class="button secondary" href="{{url_for('productos')}}">← Volver al stock</a></div>
+{% if not productos %}
+<p>No hay productos eliminados.</p>
+{% else %}
+<table><tr><th>Producto</th><th>Categoría</th><th>Último stock</th><th>Costo</th><th>Venta</th><th>Reactivar</th></tr>
+{% for p in productos %}<tr><td>{{p["nombre"]}}</td><td>{{p["categoria"]}}</td>
+<td>{{p["stock"]|int_fmt}} {{p["unidad"]}}</td><td>{{p["costo"]|money}}</td><td>{{p["precio"]|money}}</td>
+<td><form method="POST" action="{{url_for('reactivar_producto',producto_id=p['id'])}}">
+<button class="button small">Reactivar</button></form></td></tr>{% endfor %}</table>
+{% endif %}
+{% endblock %}

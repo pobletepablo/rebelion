@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Caja - Rebelión{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h1>Caja</h1><p class="muted">Controlá cuánto se recaudó y cuánto dinero se utilizó.</p></div>
+    <a href="{{url_for('exportar_caja')}}" class="button excel">📥 Exportar caja</a>
+</div>
+
+<div class="hero-stat">
+    <span>💰 Caja disponible</span>
+    <strong>{{disponible|money}}</strong>
+    <small>Ventas + bonos − gastos</small>
+</div>
+
+<div class="stat-row">
+    <div class="card"><span>Recaudación</span><strong>{{total_recaudado|money}}</strong><small>Total de ventas</small></div>
+    <div class="card"><span>🎟 Bonos</span><strong>{{total_bonos|money}}</strong><small>Ingresos adicionales</small></div>
+    <div class="card"><span>💸 Gastos</span><strong class="danger-text">{{total_gastos|money}}</strong><small>Total utilizado</small></div>
+</div>
+
+<div class="section">
+    <h2>➕ Registrar gasto</h2>
+    <form method="POST" action="{{url_for('nuevo_gasto')}}" class="form">
+        <label>Concepto</label><input name="concepto" placeholder="Ej: Compra de bebidas" required>
+        <label>Categoría</label>
+        <select name="categoria"><option>Materiales</option><option>Transporte</option><option>Comida</option><option>Evento</option><option>Impresiones</option><option>Otro</option></select>
+        <label>Monto</label><div class="input-prefix"><span>$</span><input type="number" name="monto" min="0.01" step="0.01" required></div>
+        <label>Evento (opcional)</label><select name="evento_id"><option value="">Sin evento</option>{% for e in eventos %}<option value="{{e['id']}}">{{e['nombre']}} — {{e['fecha']}}</option>{% endfor %}</select>
+        <label>Notas</label><textarea name="notas" placeholder="Opcional"></textarea>
+        <button class="button">Registrar gasto</button>
+    </form>
+</div>
+
+<div class="section">
+    <div class="page-header"><h2>Historial de gastos</h2></div>
+    {% if gastos %}
+    <table><tr><th>Fecha / Hora</th><th>Concepto</th><th>Categoría</th><th>Evento</th><th>Monto</th><th></th></tr>
+    {% for g in gastos %}<tr><td>{{g['fecha_hora']}}</td><td><strong>{{g['concepto']}}</strong>{% if g['notas'] %}<br><small class="muted">{{g['notas']}}</small>{% endif %}</td><td>{{g['categoria']}}</td><td>{{g['evento_nombre'] or 'General'}}</td><td class="danger-text">{{g['monto']|money}}</td><td><form method="POST" action="{{url_for('eliminar_gasto',gasto_id=g['id'])}}" onsubmit="return confirm('¿Eliminar este gasto?')"><button class="button small danger-outline" type="submit">Eliminar</button></form></td></tr>{% endfor %}
+    </table>
+    {% else %}<p class="muted">Todavía no hay gastos registrados.</p>{% endif %}
+</div>
+{% endblock %}

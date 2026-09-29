@@ -11,6 +11,8 @@
 <a href="{{url_for('productos')}}">Stock</a>
 <a href="{{url_for('movimientos')}}">Movimientos</a>
 <a href="{{url_for('eventos')}}">Eventos</a>
+<a href="{{url_for('agenda')}}">Agenda</a>
+<a href="{{url_for('caja')}}">Caja</a>
 </nav></header><main>
 {% with messages=get_flashed_messages(with_categories=true) %}{% for c,m in messages %}
 <div class="alert {{c}}">{{m}}</div>{% endfor %}{% endwith %}

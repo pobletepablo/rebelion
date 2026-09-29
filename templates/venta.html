@@ -1,7 +1,178 @@
-{% extends "base.html" %}{% block title %}Nueva venta{% endblock %}{% block content %}
-<h1>Nueva venta</h1><h2>{{evento["nombre"]}}</h2><form method="POST" class="form">
-<label>Producto</label><select name="producto_id" required>{% for p in productos %}
-<option value="{{p['id']}}">{{p["nombre"]}} — Stock: {{p["stock"]}} — {{p["precio"]|money}}</option>{% endfor %}</select>
-<label>Cantidad</label><input type="number" name="cantidad" min="0.01" step="0.01" value="1" required>
-<label>Medio de pago</label><select name="medio_pago"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="mercado_pago">Mercado Pago</option><option value="otro">Otro</option></select>
-<button class="button">Registrar venta</button></form>{% endblock %}
+{% extends "base.html" %}
+{% block title %}Registrar venta - {{evento["nombre"]}}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Registrar venta</h1>
+        <p class="muted">{{evento["nombre"]}}</p>
+        <p class="muted">Podés cargar varios productos en una sola operación.</p>
+    </div>
+    <a class="button secondary" href="{{url_for('evento', evento_id=evento['id'])}}">Volver al evento</a>
+</div>
+
+<form method="POST" class="sale-form" id="saleForm">
+    <div class="section sale-section">
+        <div class="page-header">
+            <h2>Productos</h2>
+            <button type="button" class="button secondary" id="addRow">＋ Agregar producto</button>
+        </div>
+        <div id="saleRows">
+            <div class="sale-row">
+                <div class="sale-product">
+                    <label>Producto</label>
+                    <select name="producto_id" class="product-select" required onchange="updateRow(this)">
+                        {% for p in productos %}
+                        <option value="{{p['id']}}" data-price="{{p['precio']}}" data-stock="{{p['stock']}}"
+                                data-mode="{{p['modo_stock']}}" data-yield="{{p['rendimiento']}}"
+                                data-stock-unit="{{p['unidad_stock']}}" data-sale-unit="{{p['unidad_venta']}}">
+                            {{p["nombre"]}} — {{p["precio"]|money}} / {{p["unidad_venta"]}}
+                            {% if p["modo_stock"]=="rendimiento" %}(stock {{p["stock"]|num_fmt}} {{p["unidad_stock"]}}, ≈ {{(p["stock"]*p["rendimiento"])|num_fmt}} {{p["unidad_venta"]}}){% elif p["modo_stock"]=="libre" %}(disponibilidad libre){% else %}(stock {{p["stock"]|num_fmt}} {{p["unidad_stock"]}}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small class="row-stock"></small>
+                </div>
+                <div class="qty-control">
+                    <label>Cantidad</label>
+                    <div class="qty-group">
+                        <button type="button" class="qty-btn minus" aria-label="Restar">−</button>
+                        <input type="number" name="cantidad" class="qty-input" min="1" step="1" value="1" required>
+                        <button type="button" class="qty-btn plus" aria-label="Sumar">＋</button>
+                    </div>
+                </div>
+                <div class="row-total">$0,00</div>
+                <button type="button" class="remove-row" title="Quitar producto" aria-label="Quitar producto">×</button>
+            </div>
+        </div>
+        <div class="sale-total">
+            <span>Total</span>
+            <strong id="saleTotal">$0,00</strong>
+        </div>
+    </div>
+
+    <div class="section sale-section payment-section">
+        <div>
+            <h2>Pago</h2>
+            <p class="muted">Queda preseleccionado Transferencia para agilizar la carga.</p>
+        </div>
+        <div class="payment-toggle">
+            <label class="payment-option">
+                <input type="radio" name="medio_pago" value="transferencia" checked>
+                <span>💳 Transferencia</span>
+            </label>
+            <label class="payment-option">
+                <input type="radio" name="medio_pago" value="efectivo">
+                <span>💵 Efectivo</span>
+            </label>
+        </div>
+        <button class="button sale-submit">Registrar venta</button>
+    </div>
+</form>
+
+<template id="rowTemplate">
+    <div class="sale-row">
+        <div class="sale-product">
+            <label>Producto</label>
+            <select name="producto_id" class="product-select" required onchange="updateRow(this)">
+                {% for p in productos %}
+                <option value="{{p['id']}}" data-price="{{p['precio']}}" data-stock="{{p['stock']}}"
+                                data-mode="{{p['modo_stock']}}" data-yield="{{p['rendimiento']}}"
+                                data-stock-unit="{{p['unidad_stock']}}" data-sale-unit="{{p['unidad_venta']}}">
+                            {{p["nombre"]}} — {{p["precio"]|money}} / {{p["unidad_venta"]}}
+                            {% if p["modo_stock"]=="rendimiento" %}(stock {{p["stock"]|num_fmt}} {{p["unidad_stock"]}}, ≈ {{(p["stock"]*p["rendimiento"])|num_fmt}} {{p["unidad_venta"]}}){% elif p["modo_stock"]=="libre" %}(disponibilidad libre){% else %}(stock {{p["stock"]|num_fmt}} {{p["unidad_stock"]}}){% endif %}
+                        </option>
+                {% endfor %}
+            </select>
+            <small class="row-stock"></small>
+        </div>
+        <div class="qty-control">
+            <label>Cantidad</label>
+            <div class="qty-group">
+                <button type="button" class="qty-btn minus" aria-label="Restar">−</button>
+                <input type="number" name="cantidad" class="qty-input" min="1" step="1" value="1" required>
+                <button type="button" class="qty-btn plus" aria-label="Sumar">＋</button>
+            </div>
+        </div>
+        <div class="row-total">$0,00</div>
+        <button type="button" class="remove-row" title="Quitar producto" aria-label="Quitar producto">×</button>
+    </div>
+</template>
+
+<script>
+const rows = document.getElementById('saleRows');
+const template = document.getElementById('rowTemplate');
+
+function moneyAR(value) {
+    return '$' + Number(value || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function updateRow(select) {
+    const row = select.closest('.sale-row');
+    const option = select.selectedOptions[0];
+    const price = Number(option?.dataset.price || 0);
+    const stock = Number(option?.dataset.stock || 0);
+    const mode = option?.dataset.mode || 'exacto';
+    const rendimiento = Number(option?.dataset.yield || 1);
+    const stockUnit = option?.dataset.stockUnit || 'unidad';
+    const saleUnit = option?.dataset.saleUnit || 'unidad';
+    const qty = row.querySelector('.qty-input');
+
+    if (mode === 'libre') {
+        qty.removeAttribute('max');
+        row.querySelector('.row-stock').textContent = 'Disponibilidad libre — se registra lo vendido';
+    } else {
+        const available = Math.floor(stock * rendimiento + 1e-9);
+        qty.max = available;
+        if (Number(qty.value) > available) qty.value = Math.max(1, available);
+        row.querySelector('.row-stock').textContent =
+            mode === 'rendimiento'
+            ? `Disponible: ≈ ${available} ${saleUnit} (${stock} ${stockUnit})`
+            : `Disponible: ${Math.floor(stock)} ${saleUnit}`;
+    }
+    row.querySelector('.row-total').textContent = moneyAR(price * Number(qty.value || 0));
+    updateTotal();
+}
+
+function updateTotal() {
+    let total = 0;
+    rows.querySelectorAll('.sale-row').forEach(row => {
+        const option = row.querySelector('.product-select').selectedOptions[0];
+        const price = Number(option?.dataset.price || 0);
+        const qty = Number(row.querySelector('.qty-input').value || 0);
+        total += price * qty;
+        row.querySelector('.row-total').textContent = moneyAR(price * qty);
+    });
+    document.getElementById('saleTotal').textContent = moneyAR(total);
+}
+
+function wireRow(row) {
+    row.querySelector('.qty-btn.minus').addEventListener('click', () => {
+        const input = row.querySelector('.qty-input');
+        input.value = Math.max(1, Number(input.value || 1) - 1);
+        updateTotal();
+    });
+    row.querySelector('.qty-btn.plus').addEventListener('click', () => {
+        const input = row.querySelector('.qty-input');
+        const max = Number(input.max || 999999);
+        input.value = Math.min(max, Number(input.value || 0) + 1);
+        updateTotal();
+    });
+    row.querySelector('.qty-input').addEventListener('input', updateTotal);
+    row.querySelector('.remove-row').addEventListener('click', () => {
+        if (rows.querySelectorAll('.sale-row').length > 1) {
+            row.remove();
+            updateTotal();
+        }
+    });
+    updateRow(row.querySelector('.product-select'));
+}
+
+document.getElementById('addRow').addEventListener('click', () => {
+    const row = template.content.firstElementChild.cloneNode(true);
+    rows.appendChild(row);
+    wireRow(row);
+});
+
+wireRow(rows.querySelector('.sale-row'));
+</script>
+{% endblock %}

@@ -1,26 +1,42 @@
-{% extends 'base.html' %}
-
+{% extends "base.html" %}
+{% block title %}Registrar pérdida - {{evento["nombre"]}}{% endblock %}
 {% block content %}
-<div class="container my-4" style="max-width: 500px;">
-    <h3 class="mb-3">Registrar Pérdida / Merma</h3>
-    <form action="/perdida" method="POST" class="card card-body shadow-sm">
-        <div class="mb-3">
-            <label for="producto_id" class="form-label">Producto:</label>
-            <select name="producto_id" class="form-select" required>
-                {% for p in productos %}
-                    <option value="{{ p[0] }}">{{ p[1] }} (Stock actual: {{ p[2] }})</option>
-                {% endfor %}
-            </select>
+<div class="page-header">
+    <div>
+        <h1>Registrar pérdida</h1>
+        <p class="muted">{{evento["nombre"]}}</p>
+        <p class="muted">Se descuenta el costo del producto del resultado del evento.</p>
+    </div>
+    <a class="button secondary" href="{{url_for('evento', evento_id=evento['id'])}}">Volver al evento</a>
+</div>
+
+<div class="section narrow-section">
+    <form method="POST" class="form">
+        <label>Producto</label>
+        <select name="producto_id" required>
+            {% for p in productos %}
+            <option value="{{p['id']}}">{{p["nombre"]}} — costo {{p["costo"]|money}} (disponible {{(p["stock"]*p["rendimiento"])|num_fmt}} {{p["unidad_venta"]}})</option>
+            {% endfor %}
+        </select>
+
+        <label>Cantidad</label>
+        <div class="qty-group standalone-qty">
+            <button type="button" class="qty-btn" onclick="changeQty(-1)">−</button>
+            <input type="number" name="cantidad" id="cantidad" min="1" step="1" value="1" required>
+            <button type="button" class="qty-btn" onclick="changeQty(1)">＋</button>
         </div>
-        <div class="mb-3">
-            <label for="cantidad" class="form-label">Cantidad Perdida:</label>
-            <input type="number" name="cantidad" class="form-control" min="1" required>
-        </div>
-        <div class="mb-3">
-            <label for="motivo" class="form-label">Motivo de la Pérdida:</label>
-            <textarea name="motivo" class="form-control" rows="3" placeholder="Ej. Dañado, vencido, rotura..." required></textarea>
-        </div>
-        <button type="submit" class="btn btn-danger">Registrar Pérdida</button>
+
+        <label>Motivo</label>
+        <textarea name="motivo" rows="4" placeholder="Ej: vaso roto, comida quemada, vencido..." required></textarea>
+
+        <button class="button danger" style="margin-top:20px;">Registrar pérdida</button>
     </form>
 </div>
+
+<script>
+function changeQty(delta) {
+    const input = document.getElementById('cantidad');
+    input.value = Math.max(1, Number(input.value || 1) + delta);
+}
+</script>
 {% endblock %}

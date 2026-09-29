@@ -1,10 +1,94 @@
-{% extends "base.html" %}{% block title %}Nuevo producto{% endblock %}{% block content %}
-<h1>Nuevo producto</h1><form method="POST" class="form">
-<label>Nombre</label><input name="nombre" required><label>Categoría</label>
-<select name="categoria"><option>Bebida</option><option>Comida</option><option>Otro</option></select>
-<label>Costo unitario</label><input type="number" name="costo" step="0.01" min="0" required>
-<label>Precio de venta</label><input type="number" name="precio" step="0.01" min="0" required>
-<label>Stock inicial</label><input type="number" name="stock" step="0.01" min="0" required>
-<label>Stock mínimo</label><input type="number" name="stock_minimo" step="0.01" min="0" value="5" required>
-<label>Unidad</label><select name="unidad"><option>unidad</option><option>lata</option><option>botella</option><option>vaso</option><option>porción</option></select>
-<button class="button">Guardar producto</button></form>{% endblock %}
+{% extends "base.html" %}
+{% block title %}{{ 'Editar producto' if producto else 'Nuevo producto' }}{% endblock %}
+{% block content %}
+<h1>{{ 'Editar producto' if producto else 'Nuevo producto' }}</h1>
+<form method="POST" class="form">
+<label>Nombre</label>
+<input name="nombre" required value="{{ producto['nombre'] if producto else '' }}" placeholder="Ej: Fernet / Vaso de fernet / Sandwich de bondiola">
+
+<label>Categoría</label>
+{% set cat_actual = producto['categoria'] if producto else '' %}
+<select name="categoria">
+<option {% if cat_actual=='Bebida' %}selected{% endif %}>Bebida</option>
+<option {% if cat_actual=='Comida' %}selected{% endif %}>Comida</option>
+<option {% if cat_actual=='Otro' %}selected{% endif %}>Otro</option>
+</select>
+
+<label>Modo de control</label>
+{% set modo_actual = producto['modo_stock'] if producto else 'exacto' %}
+<select name="modo_stock" id="modoStock" onchange="toggleStockMode()">
+<option value="exacto" {% if modo_actual=='exacto' %}selected{% endif %}>Stock exacto — se controla unidad por unidad</option>
+<option value="rendimiento" {% if modo_actual=='rendimiento' %}selected{% endif %}>Por rendimiento — una unidad de stock genera varias ventas</option>
+<option value="libre" {% if modo_actual=='libre' %}selected{% endif %}>Disponibilidad libre — registro lo vendido, sin stock exacto</option>
+</select>
+
+<div id="unidadStockBox">
+<label>Unidad de stock físico</label>
+{% set us = producto['unidad_stock'] if producto else 'unidad' %}
+<select name="unidad_stock">
+<option {% if us=='unidad' %}selected{% endif %}>unidad</option>
+<option {% if us=='botella' %}selected{% endif %}>botella</option>
+<option {% if us=='lata' %}selected{% endif %}>lata</option>
+<option {% if us=='kg' %}selected{% endif %}>kg</option>
+<option {% if us=='litro' %}selected{% endif %}>litro</option>
+<option {% if us=='porción' %}selected{% endif %}>porción</option>
+</select>
+</div>
+
+<label>Unidad de venta</label>
+{% set uv = producto['unidad_venta'] if producto else 'unidad' %}
+<select name="unidad_venta">
+<option {% if uv=='unidad' %}selected{% endif %}>unidad</option>
+<option {% if uv=='vaso' %}selected{% endif %}>vaso</option>
+<option {% if uv=='botella' %}selected{% endif %}>botella</option>
+<option {% if uv=='lata' %}selected{% endif %}>lata</option>
+<option {% if uv=='sanguches' %}selected{% endif %}>sanguches</option>
+<option {% if uv=='porción' %}selected{% endif %}>porción</option>
+</select>
+
+<div id="rendimientoBox">
+<label>Rendimiento</label>
+<input type="number" name="rendimiento" min="0.01" step="0.01"
+       value="{{ producto['rendimiento'] if producto else 1 }}">
+<p class="hint">Ejemplo: 1 botella de fernet = 20 vasos. El stock se guarda en botellas y las ventas en vasos.</p>
+</div>
+
+<label>Costo por unidad de stock ($)</label>
+<input type="number" name="costo" step="0.01" min="0" required value="{{ producto['costo'] if producto else '' }}">
+<p class="hint" id="costoHint">En stock exacto es el costo de la unidad vendida. En rendimiento es el costo de la unidad física de stock (ej.: una botella). En disponibilidad libre, es el costo estimado por unidad vendida.</p>
+
+<label>Precio de venta por {{ uv }}</label>
+<input type="number" name="precio" step="0.01" min="0" required value="{{ producto['precio'] if producto else '' }}">
+
+{% if not producto %}
+<label>Stock inicial (en unidad física de stock)</label>
+<input type="number" name="stock" step="0.01" min="0" value="0" required>
+{% endif %}
+
+<div id="stockMinBox">
+<label>Stock mínimo (en unidad física de stock)</label>
+<input type="number" name="stock_minimo" id="stockMinimo" step="0.01" min="0" value="{{ producto['stock_minimo'] if producto else 5 }}" required>
+<p class="hint">Solo se usa para productos con stock físico controlado. La disponibilidad libre no genera alertas.</p>
+</div>
+
+{% if producto %}
+<p class="hint">Stock actual: {{ producto['stock']|money }} {{ producto['unidad_stock'] }}. Para modificarlo usá "Movimiento / Ajuste de Stock".</p>
+{% endif %}
+<button class="button">{{ 'Guardar cambios' if producto else 'Guardar producto' }}</button>
+</form>
+
+<script>
+function toggleStockMode(){
+    const mode=document.getElementById('modoStock').value;
+    const rend=document.getElementById('rendimientoBox');
+    const stockBox=document.getElementById('unidadStockBox');
+    const minBox=document.getElementById('stockMinBox');
+    const minInput=document.getElementById('stockMinimo');
+    rend.style.display=mode==='rendimiento'?'block':'none';
+    stockBox.style.display=mode==='libre'?'none':'block';
+    minBox.style.display=mode==='libre'?'none':'block';
+    minInput.required=mode!=='libre';
+}
+toggleStockMode();
+</script>
+{% endblock %}

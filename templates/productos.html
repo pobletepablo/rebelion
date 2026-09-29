@@ -1,15 +1,53 @@
 {% extends "base.html" %}{% block title %}Stock - Rebelión{% endblock %}{% block content %}
-<div class="page-header"><h1>Stock</h1><a class="button" href="{{url_for('nuevo_producto')}}">+ Nuevo producto</a></div>
-<table><tr><th>Producto</th><th>Categoría</th><th>Stock</th><th>Costo</th><th>Venta</th><th>Margen</th><th>Movimiento / Registrar Pérdida</th></tr>
-{% for p in productos %}<tr><td>{{p["nombre"]}}</td><td>{{p["categoria"]}}</td><td>
-{% if p["stock"]<=p["stock_minimo"] %}<strong class="danger-text">{{p["stock"]}} {{p["unidad"]}}</strong>{% else %}{{p["stock"]}} {{p["unidad"]}}{% endif %}
-</td><td>{{p["costo"]|money}}</td><td>{{p["precio"]|money}}</td><td>{{(p["precio"]-p["costo"])|money}}</td><td>
+<div class="page-header"><h1>Stock</h1>
+<div>
+<a class="button secondary small" href="{{url_for('productos_eliminados')}}">Ver eliminados</a>
+<a class="button" href="{{url_for('nuevo_producto')}}">+ Nuevo producto</a>
+</div>
+</div>
+<table>
+<tr><th>Producto</th><th>Categoría</th><th>Disponibilidad</th><th>Costo</th><th>Venta</th><th>Margen</th><th>Movimiento / Ajuste</th><th>Editar</th><th>Eliminar</th></tr>
+{% for p in productos %}
+<tr>
+<td><strong>{{p["nombre"]}}</strong><br><small class="muted">{{p["modo_stock"]|replace('exacto','Stock exacto')|replace('rendimiento','Por rendimiento')|replace('libre','Disponibilidad libre')}}</small></td>
+<td>{{p["categoria"]}}</td>
+<td>
+{% if p["modo_stock"] == "libre" %}
+<span class="success-text">Sin stock exacto</span><br><small>Se registra lo vendido</small>
+{% elif p["modo_stock"] == "rendimiento" %}
+{% set disponible = p["stock"] * p["rendimiento"] %}
+{% if p["stock"]<=p["stock_minimo"] %}<strong class="danger-text">{% else %}<strong>{% endif %}
+{{p["stock"]|num_fmt}} {{p["unidad_stock"]}}</strong>
+<br><small>≈ {{disponible|num_fmt}} {{p["unidad_venta"]}}</small>
+{% else %}
+{% if p["stock"]<=p["stock_minimo"] %}<strong class="danger-text">{% else %}<strong>{% endif %}
+{{p["stock"]|num_fmt}} {{p["unidad_stock"]}}</strong>
+{% endif %}
+</td>
+<td>{{p["costo"]|money}}{% if p["modo_stock"]=="rendimiento" %}<small class="muted"><br>por {{p["unidad_stock"]}}</small>{% endif %}</td>
+<td>{{p["precio"]|money}} <small class="muted">/ {{p["unidad_venta"]}}</small></td>
+<td>
+{% if p["modo_stock"]=="rendimiento" %}
+{{(p["precio"] - (p["costo"]/p["rendimiento"]))|money}} / {{p["unidad_venta"]}}
+{% else %}
+{{(p["precio"]-p["costo"])|money}}
+{% endif %}
+</td>
+<td>
+{% if p["modo_stock"] != "libre" %}
 <form method="POST" action="{{url_for('modificar_stock',producto_id=p['id'])}}" class="inline-form">
-<input type="number" name="cantidad" step="0.01" min="0.01" placeholder="Cant." required style="width:70px;">
+<input type="number" name="cantidad" step="0.01" min="0.01" placeholder="Cant." required style="width:75px;">
 <select name="tipo">
-    <option value="entrada">Entrada</option>
-    <option value="salida">Salida</option>
-    <option value="perdida">🔥 Pérdida (roto/quemado)</option>
-    <option value="ajuste">Ajustar</option>
+<option value="entrada">Entrada</option><option value="salida">Salida</option>
+<option value="perdida">Pérdida</option><option value="ajuste">Ajustar</option>
 </select>
-<input type="text" name="motivo" placeholder="Motivo (ej: roto, vencido)"><button>OK</button></form></td></tr>{% endfor %}</table>{% endblock %}
+<input type="text" name="motivo" placeholder="Motivo"><button>OK</button></form>
+{% else %}<small class="muted">No requiere ajuste de stock</small>{% endif %}
+</td>
+<td><a class="button secondary small" href="{{url_for('editar_producto',producto_id=p['id'])}}">Editar</a></td>
+<td><form method="POST" action="{{url_for('eliminar_producto',producto_id=p['id'])}}" onsubmit="return confirm('¿Eliminar {{p['nombre']}} del stock activo? Se puede restaurar después desde Ver eliminados.');">
+<button class="button danger small">Eliminar</button></form></td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

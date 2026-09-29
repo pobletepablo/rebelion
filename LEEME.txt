@@ -1,0 +1,49 @@
+REBELION STOCK v3 — SERVIDOR WAITRESS
+
+1) Ejecutá iniciar_rebelion.bat.
+2) La aplicación se ejecuta con Waitress en el puerto 5000.
+3) La base de datos se guarda como rebelion.db dentro de esta carpeta.
+4) Si usás Cloudflare Tunnel, apuntalo a:
+   cloudflared tunnel --url http://127.0.0.1:5000
+
+NOVEDADES V3
+
+EVENTOS
+- El evento se crea sin Bono Rebelión.
+- El bono se carga únicamente después de cerrar el evento.
+- El detalle del evento muestra el resultado considerando ventas, costos, pérdidas, gastos y bono.
+
+PRODUCTOS POR RENDIMIENTO
+Ejemplo:
+- Producto: Vaso de fernet
+- Unidad de stock: botella
+- Unidad de venta: vaso
+- Rendimiento: 20
+- Costo: costo de una botella
+- Precio: precio de un vaso
+
+Si hay 10 botellas, el sistema calcula aproximadamente 200 vasos disponibles.
+Si se venden 5 vasos, descuenta 0,25 botella del stock.
+
+DISPONIBILIDAD LIBRE
+Para productos cuya cantidad preparada no se conoce exactamente, por ejemplo:
+- Sandwich de bondiola
+- Comida preparada hasta agotar
+
+Se configura el producto como "Disponibilidad libre". Las ventas se registran normalmente, pero no se exige un stock inicial ni se descuenta stock físico.
+
+CAJA VS GANANCIA
+- Caja disponible = ventas + bonos - gastos.
+- Ganancia neta = margen de ventas - pérdidas - gastos + bonos.
+
+La caja indica cuánto dinero queda disponible.
+La ganancia indica el resultado económico considerando el costo de los productos.
+
+BASE DE DATOS
+La base se guarda en:
+rebelion.db
+
+Al actualizar desde V2, V3 agrega automáticamente las nuevas columnas necesarias. No debería ser necesario borrar la base existente.
+
+RESPALDO
+Antes de actualizar una instalación existente, se recomienda copiar rebelion.db como respaldo.

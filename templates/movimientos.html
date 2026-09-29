@@ -29,10 +29,10 @@
                 {% if m["tipo"] == "entrada" %}<span style="color:#4caf50;">▲ Entrada</span>
                 {% elif m["tipo"] == "salida" %}<span style="color:#f44336;">▼ Salida</span>
                 {% elif m["tipo"] == "venta" %}<span style="color:#2196f3;">🛒 Venta</span>
-                {% elif m["tipo"] == "perdida" %}<span style="color:#ff4d55; font-weight:bold;">🔥 Pérdida</span>
+                {% elif m["tipo"] == "perdida" %}<span style="color:#ff4d55; font-weight:bold;">Pérdida</span>
                 {% else %}<span style="color:#ff9800;">⚙ Ajuste</span>{% endif %}
             </td>
-            <td>{{ m["cantidad"] }} {{ m["unidad"] }}</td>
+            <td>{{ m["cantidad"]|num_fmt }} {{ m["unidad"] }}</td>
             <td>
                 {{ m["motivo"] }}
                 {% if m["evento_nombre"] %} <em>({{ m["evento_nombre"] }})</em>{% endif %}
