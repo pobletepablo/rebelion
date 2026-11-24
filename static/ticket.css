@@ -1,0 +1,16 @@
+/* Tickets: hoja de 80 mm, texto negro sobre blanco (impresora térmica) */
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:#111;font-family:"Courier New",monospace}
+.ticket{width:80mm;max-width:100%;margin:0 auto;padding:8px;font-size:12px}
+.ticket h2{text-align:center;margin:6px 0;font-size:14px}
+.ticket-logo{display:block;width:56mm;max-width:100%;height:auto;margin:0 auto 8px}
+.ticket .center{text-align:center}
+.ticket .line{border-top:1px dashed #111;margin:7px 0}
+.ticket-row{display:flex;justify-content:space-between;gap:8px}
+.ticket-total{font-size:16px;font-weight:700}
+.ticket-note{font-size:10px;text-align:center;white-space:pre-line}
+.print-actions{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:15px}
+.print-actions button,.print-actions a{padding:12px 18px;font:inherit;font-size:14px;border:1px solid #111;background:#111;color:#fff;border-radius:6px;text-decoration:none;cursor:pointer;min-height:44px}
+.print-actions .secondary{background:#fff;color:#111}
+@page{size:80mm auto;margin:0}
+@media print{.print-actions{display:none}.ticket{margin:0;width:80mm}}

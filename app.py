@@ -5,6 +5,8 @@ import datetime
 import calendar
 import math
 import uuid
+import hmac
+import secrets
 from pathlib import Path
 from werkzeug.utils import secure_filename
 
@@ -14,22 +16,47 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-from database import get_db, init_db
+from database import get_db, init_db, DB_PATH
+from changelog import VERSION, CAMBIOS
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
+MAX_IMAGEN_MB = 10
+app.config["MAX_CONTENT_LENGTH"] = MAX_IMAGEN_MB * 1024 * 1024
 PRODUCT_IMAGE_DIR = Path(app.static_folder) / "productos"
 PRODUCT_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_PRODUCT_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
-# La clave de sesión y el modo debug ahora se configuran por variable de entorno.
-# Si no se define REBELION_SECRET_KEY, se genera una al arrancar (las sesiones/flash
-# se invalidan al reiniciar el server, pero nunca queda una clave fija en el código).
-app.secret_key = os.environ.get("REBELION_SECRET_KEY") or os.urandom(24)
+# Clave de sesión: variable de entorno o archivo secret.key junto a la base
+# (se crea una sola vez, así las sesiones sobreviven a reinicios del servidor).
+def _clave_secreta():
+    env = os.environ.get("REBELION_SECRET_KEY")
+    if env:
+        return env
+    archivo = DB_PATH.parent / "secret.key"
+    try:
+        if archivo.exists():
+            return archivo.read_text().strip()
+        clave = secrets.token_hex(32)
+        archivo.write_text(clave)
+        return clave
+    except OSError:
+        return secrets.token_hex(32)
+
+
+app.secret_key = _clave_secreta()
 DEBUG = os.environ.get("REBELION_DEBUG", "0") == "1"
 
 init_db()
 
-ADMIN_PASSWORD = "1917"
+ADMIN_PASSWORD = os.environ.get("REBELION_ADMIN_PASSWORD", "1917")
+
+# Textos editables de los tickets (Ajustes). Los valores por defecto son los originales.
+TICKET_DEFAULTS = {
+    "venta_titulo": "COMPROBANTE DE VENTA",
+    "venta_pie": "Gracias por colaborar",
+    "balance_titulo": "RESUMEN DE ACTIVIDAD",
+    "balance_pie": "Rendición consolidada",
+    "contacto": "@rebelion.lp",
+}
 
 
 @app.before_request
@@ -48,7 +75,7 @@ def requerir_ingreso():
         "productos_eliminados", "reactivar_producto", "modificar_stock",
         "nuevo_evento", "agregar_responsable", "eliminar_responsable",
         "actualizar_bono", "nueva_perdida", "cerrar_evento",
-        "eliminar_actividad", "exportar_caja", "exportar_movimientos",
+        "eliminar_actividad", "ajustes", "exportar_caja", "exportar_movimientos",
         "exportar_evento",
     }
     if endpoint in admin_only and not session.get("es_admin", False):
@@ -58,7 +85,26 @@ def requerir_ingreso():
 
 @app.context_processor
 def contexto_usuario():
-    return {"usuario_nombre": session.get("nombre"), "es_admin": session.get("es_admin", False)}
+    return {"usuario_nombre": session.get("nombre"), "es_admin": session.get("es_admin", False),
+            "app_version": VERSION}
+
+
+def textos_ticket():
+    """Textos de ticket guardados, completando con los valores por defecto."""
+    textos = dict(TICKET_DEFAULTS)
+    try:
+        for fila in get_conn().execute("SELECT clave, valor FROM config").fetchall():
+            if fila["clave"] in textos:
+                textos[fila["clave"]] = fila["valor"]
+    except Exception:
+        pass
+    return textos
+
+
+@app.errorhandler(413)
+def archivo_muy_grande(_):
+    flash(f"La foto supera los {MAX_IMAGEN_MB} MB. Probá con una más liviana.", "danger")
+    return redirect(request.referrer or url_for("productos"))
 
 
 # ================= CONEXIÓN A LA BASE (una por request, siempre se cierra) =================
@@ -138,6 +184,15 @@ def producto_config_form():
     return modo, unidad_stock, unidad_venta, rendimiento
 
 
+def borrar_imagen_producto(nombre):
+    """Elimina del disco una foto que ya no se usa."""
+    if nombre:
+        try:
+            (PRODUCT_IMAGE_DIR / Path(nombre).name).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def guardar_imagen_producto(archivo, imagen_actual=""):
     """Guarda una imagen de producto en static/productos y devuelve su nombre."""
     if not archivo or not archivo.filename:
@@ -154,7 +209,10 @@ def rango_mes(mes_str):
     """Convierte 'YYYY-MM' en (inicio, fin_exclusivo) como strings comparables
     con fecha_hora (TEXT). A diferencia de strftime('%Y-%m', fecha_hora)=?,
     esta comparación por rango puede usar un índice sobre fecha_hora."""
-    inicio = datetime.datetime.strptime(mes_str, "%Y-%m")
+    try:
+        inicio = datetime.datetime.strptime(mes_str, "%Y-%m")
+    except (TypeError, ValueError):
+        inicio = datetime.datetime.now().replace(day=1)
     ultimo_dia = calendar.monthrange(inicio.year, inicio.month)[1]
     fin = inicio.replace(day=ultimo_dia, hour=23, minute=59, second=59)
     return inicio.strftime("%Y-%m-%d 00:00:00"), fin.strftime("%Y-%m-%d 23:59:59")
@@ -170,9 +228,12 @@ def login():
         if not nombre:
             flash("Ingresá tu nombre para entrar.", "danger")
             return redirect(url_for("login"))
+        if password and not hmac.compare_digest(password.encode(), ADMIN_PASSWORD.encode()):
+            flash("Contraseña incorrecta. Dejala vacía para entrar como invitado.", "danger")
+            return redirect(url_for("login"))
         session.clear()
         session["nombre"] = nombre
-        session["es_admin"] = password == ADMIN_PASSWORD
+        session["es_admin"] = bool(password)
         flash(f"Bienvenido/a, {nombre}.", "success")
         return redirect(url_for("index"))
     return render_template("login.html")
@@ -187,99 +248,20 @@ def salir():
 @app.route("/")
 def index():
     db = get_conn()
-    # La disponibilidad libre no representa un stock físico controlable.
-    # Por eso nunca debe disparar alertas de stock mínimo.
-    productos = db.execute("""
-        SELECT *, CASE
-            WHEN modo_stock != 'libre' AND stock <= stock_minimo THEN 1
-            ELSE 0
-        END stock_bajo
-        FROM productos WHERE activo=1 ORDER BY nombre
-    """).fetchall()
-    stock_bajo = [p for p in productos if p["stock_bajo"]]
-
-    # Los invitados ingresan directamente al modo operativo si hay un evento vigente.
-    if not session.get("es_admin", False):
-        vigente = db.execute("SELECT id FROM eventos WHERE estado='abierto' ORDER BY fecha DESC,id DESC LIMIT 1").fetchone()
-        if vigente:
-            return redirect(url_for("nueva_venta", evento_id=vigente["id"]))
-        return redirect(url_for("modo_evento"))
-
-    # Evento vigente: se toma el abierto más reciente.
     evento = db.execute("""
         SELECT * FROM eventos WHERE estado='abierto'
         ORDER BY fecha DESC, id DESC LIMIT 1
     """).fetchone()
 
-    ventas_evento = margen_evento = perdidas_evento_valor = 0
-    efectivo_evento = transferencia_evento = 0
-    if evento:
-        ventas_evento = db.execute(
-            "SELECT COALESCE(SUM(total),0) FROM ventas WHERE evento_id=?",
-            (evento["id"],)).fetchone()[0]
+    # Los invitados van directo a vender si hay un evento vigente.
+    if not session.get("es_admin", False):
+        if evento:
+            return redirect(url_for("nueva_venta", evento_id=evento["id"]))
+        return redirect(url_for("modo_evento"))
 
-        margen_ventas = db.execute("""
-            SELECT COALESCE(SUM(vi.cantidad*(vi.precio_unitario-vi.costo_unitario)),0)
-            FROM venta_items vi JOIN ventas v ON v.id=vi.venta_id
-            WHERE v.evento_id=?
-        """, (evento["id"],)).fetchone()[0]
-        perdidas_evento_valor = db.execute("""
-            SELECT COALESCE(SUM(m.cantidad * COALESCE(m.costo_unitario, p.costo)),0)
-            FROM movimientos m JOIN productos p ON p.id=m.producto_id
-            WHERE m.evento_id=? AND m.tipo='perdida'
-        """, (evento["id"],)).fetchone()[0]
-        gastos_evento_valor = db.execute(
-            "SELECT COALESCE(SUM(monto),0) FROM gastos WHERE evento_id=?",
-            (evento["id"],)).fetchone()[0]
-        margen_evento = margen_ventas - perdidas_evento_valor - gastos_evento_valor + (evento["bono_rebelion"] or 0)
-
-        efectivo_evento = db.execute(
-            "SELECT COALESCE(SUM(total),0) FROM ventas WHERE evento_id=? AND medio_pago='efectivo'",
-            (evento["id"],)).fetchone()[0]
-        transferencia_evento = db.execute(
-            "SELECT COALESCE(SUM(total),0) FROM ventas WHERE evento_id=? AND medio_pago='transferencia'",
-            (evento["id"],)).fetchone()[0]
-
-    # Indicador secundario de stock: sigue disponible, pero deja de competir con la recaudación.
-    resumen_stock = db.execute(
-        "SELECT COALESCE(SUM(stock*costo),0) valor, COALESCE(SUM(stock),0) unidades "
-        "FROM productos WHERE activo=1"
-    ).fetchone()
-    valor_stock = resumen_stock["valor"]
-    total_unidades_stock = resumen_stock["unidades"]
-
-    mes_actual = datetime.datetime.now().strftime("%Y-%m")
-    inicio, fin = rango_mes(mes_actual)
-    perdidas_mes = db.execute("""
-        SELECT COALESCE(SUM(m.cantidad * COALESCE(m.costo_unitario, p.costo)), 0) as valor_perdida,
-               COALESCE(SUM(m.cantidad), 0) as cant_perdida
-        FROM movimientos m
-        JOIN productos p ON p.id = m.producto_id
-        WHERE m.tipo = 'perdida' AND m.fecha_hora BETWEEN ? AND ?
-    """, (inicio, fin)).fetchone()
-
-    # Recaudación y bono acumulados de todos los eventos.
-    recaudacion_total = db.execute(
-        "SELECT COALESCE(SUM(total),0) FROM ventas"
-    ).fetchone()[0]
-    bono_total = db.execute(
-        "SELECT COALESCE(SUM(bono_rebelion),0) FROM eventos"
-    ).fetchone()[0]
-    margen_total_ventas = db.execute("""
-        SELECT COALESCE(SUM(vi.cantidad*(vi.precio_unitario-vi.costo_unitario)),0)
-        FROM venta_items vi
-    """).fetchone()[0]
-    perdidas_total = db.execute("""
-        SELECT COALESCE(SUM(m.cantidad * COALESCE(m.costo_unitario, p.costo)),0)
-        FROM movimientos m JOIN productos p ON p.id=m.producto_id
-        WHERE m.tipo='perdida'
-    """).fetchone()[0]
+    recaudacion_total = db.execute("SELECT COALESCE(SUM(total),0) FROM ventas").fetchone()[0]
+    bono_total = db.execute("SELECT COALESCE(SUM(bono_rebelion),0) FROM eventos").fetchone()[0]
     gastos_total = db.execute("SELECT COALESCE(SUM(monto),0) FROM gastos").fetchone()[0]
-    # BUG corregido: "gastos_total" se consultaba con locals() ANTES de estar
-    # asignada (la asignación estaba más abajo), así que Python siempre tomaba
-    # la rama que NO restaba gastos. "Ganancias del local" quedaba inflada por
-    # el total de gastos del local, en todos los eventos combinados.
-    ganancias_local = margen_total_ventas - perdidas_total + bono_total - gastos_total
     caja_disponible = recaudacion_total + bono_total - gastos_total
 
     ultimos_eventos = db.execute("""
@@ -291,31 +273,18 @@ def index():
         LIMIT 5
     """).fetchall()
 
-    hoy = datetime.date.today().isoformat()
     proximas_actividades = db.execute("""
         SELECT * FROM actividades
         WHERE estado='programada' AND fecha >= ?
         ORDER BY fecha ASC,
                  CASE WHEN hora_inicio='' THEN '99:99' ELSE hora_inicio END ASC, id ASC
         LIMIT 5
-    """, (hoy,)).fetchall()
+    """, (datetime.date.today().isoformat(),)).fetchall()
 
-    return render_template("index.html", productos=productos, stock_bajo=stock_bajo,
-                           evento=evento, ventas_evento=ventas_evento,
-                           margen_evento=margen_evento,
-                           efectivo_evento=efectivo_evento,
-                           transferencia_evento=transferencia_evento,
-                           valor_stock=valor_stock,
-                           total_unidades_stock=total_unidades_stock,
-                           perdidas_mes=perdidas_mes,
-                           recaudacion_total=recaudacion_total,
-                           bono_total=bono_total,
-                           ganancias_local=ganancias_local,
-                           gastos_total=gastos_total,
-                           caja_disponible=caja_disponible,
-                           ultimos_eventos=ultimos_eventos,
+    return render_template("index.html", evento=evento, gastos_total=gastos_total,
+                           caja_disponible=caja_disponible, ultimos_eventos=ultimos_eventos,
                            proximas_actividades=proximas_actividades,
-                           mes_actual=mes_actual)
+                           mes_actual=datetime.datetime.now().strftime("%Y-%m"))
 
 
 @app.route("/modo-evento")
@@ -326,17 +295,14 @@ def modo_evento(evento_id=None):
         evento = db.execute("SELECT * FROM eventos WHERE id=?", (evento_id,)).fetchone()
     else:
         evento = db.execute("SELECT * FROM eventos WHERE estado='abierto' ORDER BY fecha DESC,id DESC LIMIT 1").fetchone()
-    if not evento:
-        agenda_proxima = db.execute("SELECT * FROM actividades WHERE fecha>=date('now','localtime') ORDER BY fecha,hora_inicio LIMIT 8").fetchall()
-        return render_template("modo_evento.html", evento=None, agenda=agenda_proxima, productos=[])
-    # Modo Evento es una entrada directa al punto de venta, no un menú intermedio.
-    # La pantalla de venta ya presenta los productos como botones con iconos/fotos.
-    if evento["estado"] == "abierto":
+    # Con un evento vigente, la entrada es directo el punto de venta.
+    if evento and evento["estado"] == "abierto":
         return redirect(url_for("nueva_venta", evento_id=evento["id"]))
-    responsables = db.execute("SELECT * FROM evento_responsables WHERE evento_id=? ORDER BY CASE rol WHEN 'Caja' THEN 1 WHEN 'Cocina' THEN 2 ELSE 3 END,hora_inicio", (evento["id"],)).fetchall()
-    productos = db.execute("SELECT * FROM productos WHERE activo=1 ORDER BY categoria,nombre").fetchall()
+    responsables = []
+    if evento:
+        responsables = db.execute("SELECT * FROM evento_responsables WHERE evento_id=? ORDER BY CASE rol WHEN 'Caja' THEN 1 WHEN 'Cocina' THEN 2 ELSE 3 END,hora_inicio", (evento["id"],)).fetchall()
     agenda_proxima = db.execute("SELECT * FROM actividades WHERE fecha>=date('now','localtime') ORDER BY fecha,hora_inicio LIMIT 8").fetchall()
-    return render_template("modo_evento.html", evento=evento, responsables=responsables, agenda=agenda_proxima, productos=productos)
+    return render_template("modo_evento.html", evento=evento, responsables=responsables, agenda=agenda_proxima)
 
 
 @app.route("/productos")
@@ -409,7 +375,7 @@ def editar_producto(producto_id):
         except ValueError as exc:
             flash(str(exc), "danger")
             return render_template("producto_form.html", producto=producto)
-        if request.form.get("quitar_imagen") == "1":
+        if request.form.get("quitar_imagen") == "1" and imagen == (producto["imagen"] or ""):
             imagen = ""
 
         if not nombre or None in (costo, precio, stock_minimo) or config is None:
@@ -431,6 +397,8 @@ def editar_producto(producto_id):
                    (nombre, categoria, costo, precio, stock_minimo, unidad_venta,
                     modo, unidad_stock, unidad_venta, rendimiento, imagen, producto_id))
         db.commit()
+        if (producto["imagen"] or "") != imagen:
+            borrar_imagen_producto(producto["imagen"])
         flash("Producto actualizado correctamente.", "success")
         return redirect(url_for("productos"))
 
@@ -508,9 +476,13 @@ def modificar_stock(producto_id):
         tipo = "ajuste"
 
     db.execute("UPDATE productos SET stock=? WHERE id=?", (max(0, nuevo), producto_id))
+    cant_mov, costo_mov = cantidad, (p["costo"] if tipo == "perdida" else None)
+    if tipo == "perdida" and p["modo_stock"] == "rendimiento":
+        # Las pérdidas se muestran en unidad de venta (ej.: vasos), igual que las del evento.
+        rend = p["rendimiento"] if p["rendimiento"] and p["rendimiento"] > 0 else 1
+        cant_mov, costo_mov = cantidad * rend, p["costo"] / rend
     db.execute("""INSERT INTO movimientos(producto_id,tipo,cantidad,motivo,costo_unitario)
-                  VALUES (?,?,?,?,?)""",
-               (producto_id, tipo, cantidad, motivo, p["costo"] if tipo == "perdida" else None))
+                  VALUES (?,?,?,?,?)""", (producto_id, tipo, cant_mov, motivo, costo_mov))
     db.commit()
 
     msg = "Pérdida registrada correctamente." if tipo == "perdida" else "Stock actualizado."
@@ -600,12 +572,15 @@ def nuevo_gasto_evento(evento_id):
 @app.route("/caja/gasto/<int:gasto_id>/eliminar", methods=["POST"])
 def eliminar_gasto(gasto_id):
     db = get_conn()
-    cur = db.execute("DELETE FROM gastos WHERE id=?", (gasto_id,))
-    if cur.rowcount:
-        db.commit()
-        flash("Gasto eliminado.", "success")
-    else:
+    gasto = db.execute("SELECT evento_id FROM gastos WHERE id=?", (gasto_id,)).fetchone()
+    if not gasto:
         flash("Gasto no encontrado.", "danger")
+        return redirect(url_for("caja"))
+    db.execute("DELETE FROM gastos WHERE id=?", (gasto_id,))
+    db.commit()
+    flash("Gasto eliminado.", "success")
+    if request.form.get("volver") == "evento" and gasto["evento_id"]:
+        return redirect(url_for("evento", evento_id=gasto["evento_id"]) + "#gastos")
     return redirect(url_for("caja"))
 
 
@@ -757,7 +732,7 @@ def ticket_evento(evento_id):
     resultado = recaudacion - perdidas - total_gastos + bono
     efectivo = sum(v["total"] for v in ventas if v["medio_pago"] == "efectivo")
     transferencia = sum(v["total"] for v in ventas if v["medio_pago"] == "transferencia")
-    return render_template("ticket_evento.html", evento=evento, items=items, gastos=gastos,
+    return render_template("ticket_evento.html", textos=textos_ticket(), evento=evento, items=items, gastos=gastos,
                            recaudacion=recaudacion, total_gastos=total_gastos, perdidas=perdidas,
                            bono=bono, resultado=resultado, efectivo=efectivo, transferencia=transferencia,
                            ventas=ventas)
@@ -918,7 +893,7 @@ def ticket_venta(venta_id):
     if not venta:
         return "Venta no encontrada", 404
     items = db.execute("SELECT p.nombre,p.unidad_venta unidad,vi.cantidad,vi.precio_unitario,vi.cantidad*vi.precio_unitario total FROM venta_items vi JOIN productos p ON p.id=vi.producto_id WHERE vi.venta_id=? ORDER BY vi.id", (venta_id,)).fetchall()
-    return render_template("ticket_venta.html", venta=venta, items=items)
+    return render_template("ticket_venta.html", textos=textos_ticket(), venta=venta, items=items)
 
 
 @app.route("/eventos/<int:evento_id>/perdida", methods=["GET", "POST"])
@@ -992,6 +967,34 @@ def cerrar_evento(evento_id):
         flash("Evento cerrado. Se prepara el balance consolidado para imprimir.", "success")
         return redirect(url_for("ticket_evento", evento_id=evento_id) + "?auto=1")
     return redirect(url_for("evento", evento_id=evento_id))
+
+
+# ================= AJUSTES Y VERSIONES =================
+
+@app.route("/ajustes", methods=["GET", "POST"])
+def ajustes():
+    db = get_conn()
+    if request.method == "POST":
+        if request.form.get("accion") == "restablecer":
+            db.execute("DELETE FROM config")
+            db.commit()
+            flash("Textos de los tickets restablecidos.", "success")
+            return redirect(url_for("ajustes"))
+        for clave, defecto in TICKET_DEFAULTS.items():
+            valor = request.form.get(clave, "").strip()[:160]
+            if valor and valor != defecto:
+                db.execute("INSERT OR REPLACE INTO config(clave,valor) VALUES(?,?)", (clave, valor))
+            else:
+                db.execute("DELETE FROM config WHERE clave=?", (clave,))
+        db.commit()
+        flash("Textos de los tickets guardados.", "success")
+        return redirect(url_for("ajustes"))
+    return render_template("ajustes.html", textos=textos_ticket())
+
+
+@app.route("/versiones")
+def versiones():
+    return render_template("versiones.html", cambios=CAMBIOS)
 
 
 # ================= AGENDA / CALENDARIO =================
@@ -1203,7 +1206,7 @@ def exportar_evento(evento_id):
     """, (evento_id,)).fetchall()
 
     perdidas = db.execute("""
-        SELECT p.nombre, p.unidad_stock AS unidad, m.cantidad,
+        SELECT p.nombre, p.unidad_venta AS unidad, m.cantidad,
                (m.cantidad * COALESCE(m.costo_unitario,p.costo)) costo_total,
                m.motivo, m.fecha_hora
         FROM movimientos m JOIN productos p ON p.id=m.producto_id
@@ -1219,10 +1222,6 @@ def exportar_evento(evento_id):
     gastos_evento_export = db.execute(
         "SELECT COALESCE(SUM(monto),0) FROM gastos WHERE evento_id=?", (evento_id,)
     ).fetchone()[0]
-    # BUG corregido: acá no se restaban los gastos del evento, a diferencia
-    # del cálculo que se muestra en la pantalla del evento (resultado_evento
-    # en la ruta evento()). El Excel exportado daba un resultado más alto
-    # que el que veías en pantalla para el mismo evento.
     resultado = margen_ventas - total_perdidas - gastos_evento_export + (evento["bono_rebelion"] or 0)
 
     wb = openpyxl.Workbook()
@@ -1245,6 +1244,7 @@ def exportar_evento(evento_id):
     ws_ventas.append(["TOTAL RECAUDADO ($)", total_recaudado])
     ws_ventas.append(["BONO REBELIÓN ($)", evento["bono_rebelion"] or 0])
     ws_ventas.append(["COSTO DE PÉRDIDAS ($)", total_perdidas])
+    ws_ventas.append(["GASTOS ($)", gastos_evento_export])
     ws_ventas.append(["RESULTADO DEL EVENTO ($)", resultado])
     _estilar_excel(ws_ventas, f"DETALLE DE VENTAS - {evento['nombre']}")
 
@@ -1276,7 +1276,7 @@ if __name__ == "__main__":
     except Exception:
         local_ips = []
 
-    print("\nRebelión Stock v2 iniciado.")
+    print(f"\nRebelión Stock v{VERSION} iniciado.")
     print("PC:       http://127.0.0.1:5000")
     for ip in local_ips:
         print(f"Red local: http://{ip}:5000")

@@ -1,54 +1,66 @@
 {% extends "base.html" %}
-{% block title %}Agenda - Rebelión{% endblock %}
+{% block title %}Agenda · Rebelión{% endblock %}
 {% block content %}
 <div class="page-header">
-  <div><h1>Agenda</h1><p class="muted">Actividades, reuniones y reservas futuras del local.</p></div>
+  <h1>Agenda</h1>
   <div class="calendar-nav">
-    <a class="button secondary small" href="{{url_for('agenda', mes=prev_month)}}">‹</a>
-    <strong>{{mes_nombre}}</strong>
-    <a class="button secondary small" href="{{url_for('agenda', mes=next_month)}}">›</a>
-    <a class="button small" href="{{url_for('agenda')}}">Hoy</a>
+    <a class="button secondary small" href="{{ url_for('agenda', mes=prev_month) }}" aria-label="Mes anterior">‹</a>
+    <strong>{{ mes_nombre }}</strong>
+    <a class="button secondary small" href="{{ url_for('agenda', mes=next_month) }}" aria-label="Mes siguiente">›</a>
+    <a class="button small" href="{{ url_for('agenda') }}">Hoy</a>
   </div>
 </div>
 
 <div class="agenda-layout">
   <section class="section calendar-section">
-    <div class="calendar-weekdays">{% for d in ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'] %}<div>{{d}}</div>{% endfor %}</div>
+    <div class="calendar-weekdays">{% for d in ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'] %}<div>{{ d }}</div>{% endfor %}</div>
     <div class="calendar-grid">
-      {% for semana in calendario %}
-        {% for dia in semana %}
-        <div class="calendar-day {% if not dia.en_mes %}is-outside{% endif %} {% if dia.fecha.isoformat()==hoy %}is-today{% endif %}">
-          <div class="day-number">{{dia.fecha.day}}</div>
-          {% for a in dia.actividades %}
-          <div class="calendar-event {{ 'event-reserva' if a['tipo']=='Reserva' else '' }}">
-            <strong>{{a['titulo']}}</strong>
-            {% if a['hora_inicio'] %}<small>{{a['hora_inicio']}}{% if a['hora_fin'] %}–{{a['hora_fin']}}{% endif %}</small>{% endif %}
-          </div>
-          {% endfor %}
+      {% for semana in calendario %}{% for dia in semana %}
+      <div class="calendar-day {{ 'is-outside' if not dia.en_mes }} {{ 'is-today' if dia.fecha.isoformat()==hoy }}">
+        <div class="day-number">{{ dia.fecha.day }}</div>
+        {% for a in dia.actividades %}
+        <div class="calendar-event {{ 'event-reserva' if a['tipo']=='Reserva' }}" title="{{ a['titulo'] }}">
+          <strong>{{ a['titulo'] }}</strong>
+          {% if a['hora_inicio'] %}<small>{{ a['hora_inicio'] }}{% if a['hora_fin'] %}–{{ a['hora_fin'] }}{% endif %}</small>{% endif %}
         </div>
         {% endfor %}
-      {% endfor %}
+      </div>
+      {% endfor %}{% endfor %}
     </div>
   </section>
 
-  <section class="section agenda-form-section">
-    <h2>＋ Agregar actividad</h2>
+  <section class="section">
+    <h2>＋ Nueva actividad</h2>
     <form method="POST" class="form">
-      <label>Nombre</label><input name="titulo" placeholder="Ej: Reserva del local" required>
-      <label>Tipo</label><select name="tipo"><option>Actividad</option><option>Reserva</option><option>Reunión</option><option>Otro</option></select>
-      <label>Fecha</label><input type="date" name="fecha" value="{{hoy}}" required>
-      <div class="time-pair"><div><label>Desde</label><input type="time" name="hora_inicio"></div><div><label>Hasta</label><input type="time" name="hora_fin"></div></div>
-      <label>Notas</label><textarea name="notas" placeholder="Opcional"></textarea>
-      <button class="button">Guardar actividad</button>
+      <label for="titulo">Nombre</label><input id="titulo" name="titulo" placeholder="Ej: Reserva del local" required>
+      <label for="tipo">Tipo</label><select id="tipo" name="tipo"><option>Actividad</option><option>Reserva</option><option>Reunión</option><option>Otro</option></select>
+      <label for="fecha">Fecha</label><input id="fecha" type="date" name="fecha" value="{{ hoy }}" required>
+      <div class="grid-2">
+        <div><label for="hora_inicio">Desde</label><input id="hora_inicio" type="time" name="hora_inicio"></div>
+        <div><label for="hora_fin">Hasta</label><input id="hora_fin" type="time" name="hora_fin"></div>
+      </div>
+      <label for="notas">Notas</label><textarea id="notas" name="notas" placeholder="Opcional"></textarea>
+      <button class="button">Guardar</button>
     </form>
   </section>
 </div>
 
 <div class="section">
-  <div class="page-header"><div><h2>Próximas actividades</h2>{% if es_admin %}<p class="muted">También podés eliminarlas desde acá.</p>{% endif %}</div></div>
+  <h2>Próximas actividades</h2>
   {% if proximas %}
-  <div class="responsive-table"><table><tr><th>Fecha</th><th>Horario</th><th>Actividad</th><th>Tipo</th><th>Notas</th><th></th></tr>
-  {% for a in proximas %}<tr><td>{{a['fecha']}}</td><td>{% if a['hora_inicio'] %}{{a['hora_inicio']}}{% if a['hora_fin'] %}–{{a['hora_fin']}}{% endif %}{% else %}—{% endif %}</td><td><strong>{{a['titulo']}}</strong></td><td>{{a['tipo']}}</td><td>{{a['notas'] or '—'}}</td>{% if es_admin %}<td><form method="POST" action="{{url_for('eliminar_actividad',actividad_id=a['id'])}}" onsubmit="return confirm('¿Eliminar esta actividad?')"><button class="button small danger-outline" type="submit">×</button></form></td>{% endif %}</tr>{% endfor %}</table></div>
-  {% else %}<p class="muted">No hay actividades futuras cargadas.</p>{% endif %}
+  <table class="stack">
+    <thead><tr><th>Fecha</th><th>Horario</th><th>Actividad</th><th>Tipo</th><th>Notas</th>{% if es_admin %}<th></th>{% endif %}</tr></thead>
+    <tbody>
+    {% for a in proximas %}<tr>
+      <td data-label="Fecha">{{ a['fecha'] }}</td>
+      <td data-label="Horario">{% if a['hora_inicio'] %}{{ a['hora_inicio'] }}{% if a['hora_fin'] %}–{{ a['hora_fin'] }}{% endif %}{% else %}—{% endif %}</td>
+      <td class="title"><strong>{{ a['titulo'] }}</strong></td>
+      <td data-label="Tipo"><span class="role-badge">{{ a['tipo'] }}</span></td>
+      <td data-label="Notas">{{ a['notas'] or '—' }}</td>
+      {% if es_admin %}<td class="actions"><form method="POST" action="{{ url_for('eliminar_actividad', actividad_id=a['id']) }}" onsubmit="return confirm('¿Eliminar esta actividad?')"><button class="button small danger-outline" aria-label="Eliminar">×</button></form></td>{% endif %}
+    </tr>{% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">No hay actividades futuras.</p>{% endif %}
 </div>
 {% endblock %}

@@ -1,88 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Rebelión{% endblock %}
+{% block title %}Inicio · Rebelión{% endblock %}
 {% block content %}
-<div class="page-header dashboard-header">
-    <div>
-        <h1>Dashboard</h1>
-        <p class="muted">Resumen rápido de caja y actividad de eventos.</p>
-    </div>
-    <a href="{{ url_for('exportar_movimientos', mes=mes_actual) }}" class="button excel">📥 Exportar movimientos</a>
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <a href="{{ url_for('exportar_movimientos', mes=mes_actual) }}" class="button excel">📥 Movimientos</a>
 </div>
 
 <div class="dashboard-grid">
-    <section class="dashboard-finance">
-        <div class="card dashboard-card dashboard-caja">
-            <span>💰 Caja disponible</span>
-            <strong>{{caja_disponible|money}}</strong>
-            <small>Ventas + bonos − gastos</small>
-        </div>
-        <div class="card dashboard-card dashboard-gastos">
-            <span>💸 Gastos</span>
-            <strong class="danger-text">{{gastos_total|money}}</strong>
-            <small>Dinero utilizado</small>
-        </div>
-    </section>
+  <div class="dashboard-finance">
+    <div class="card dashboard-card"><span>💰 Caja disponible</span><strong>{{ caja_disponible|money }}</strong><small>Ventas + bonos − gastos</small></div>
+    <div class="card dashboard-card"><span>💸 Gastos</span><strong class="danger-text">{{ gastos_total|money }}</strong></div>
+  </div>
 
-    <section class="section dashboard-event-panel">
-        {% if evento %}
-        <div class="page-header">
-            <div>
-                <span class="status-badge is-open"><span class="dot"></span>Evento vigente</span>
-                <h2>{{evento["nombre"]}}</h2>
-                <p class="muted">{{evento["fecha"]}}</p>
-            </div>
-            <a class="button" href="{{url_for('evento',evento_id=evento['id'])}}">Abrir evento</a>
-        </div>
-        <p class="muted" style="margin-top:18px;">La información financiera y operativa detallada está dentro del evento.</p>
-        {% else %}
-        <div class="page-header">
-            <div>
-                <span class="status-badge"><span class="dot"></span>Sin evento vigente</span>
-                <h2>Últimos eventos</h2>
-            </div>
-            <a class="button" href="{{url_for('eventos')}}">Ir a Eventos</a>
-        </div>
-        {% if ultimos_eventos %}
-        <div class="recent-events">
-            {% for e in ultimos_eventos %}
-            <a class="recent-event" href="{{url_for('evento',evento_id=e['id'])}}">
-                <div>
-                    <strong>{{e["nombre"]}}</strong>
-                    <span>{{e["fecha"]}} · {{ "Abierto" if e["estado"] == "abierto" else "Cerrado" }}</span>
-                </div>
-                <strong>{{e["recaudacion"]|money}}</strong>
-            </a>
-            {% endfor %}
-        </div>
-        {% else %}
-        <p class="muted dashboard-empty">No hay eventos registrados todavía.</p>
-        {% endif %}
-        {% endif %}
-    </section>
-</div>
-
-<div class="section dashboard-agenda">
+  <section class="section dashboard-event-panel">
+    {% if evento %}
     <div class="page-header">
-        <div>
-            <h2>📅 Próximas actividades</h2>
-            <p class="muted">Actividades y reservas futuras del local.</p>
-        </div>
-        <a class="button secondary" href="{{url_for('agenda')}}">Ver agenda</a>
-    </div>
-    {% if proximas_actividades %}
-    <div class="upcoming-list">
-      {% for a in proximas_actividades %}
-      <div class="upcoming-item">
-        <div>
-          <strong>{{a["titulo"]}}</strong>
-          <span>{{a["fecha"]}}{% if a["hora_inicio"] %} · {{a["hora_inicio"]}}{% if a["hora_fin"] %}–{{a["hora_fin"]}}{% endif %}{% endif %}</span>
-        </div>
-        <span class="role-badge">{{a["tipo"]}}</span>
+      <div>
+        <span class="status-badge is-open"><span class="dot"></span>Evento vigente</span>
+        <h2>{{ evento['nombre'] }}</h2>
+        <p class="muted">{{ evento['fecha'] }}</p>
       </div>
-      {% endfor %}
+      <a class="button" href="{{ url_for('evento', evento_id=evento['id']) }}">Abrir</a>
     </div>
     {% else %}
-    <p class="muted dashboard-empty">No hay actividades o reservas próximas.</p>
+    <div class="page-header">
+      <div><span class="status-badge"><span class="dot"></span>Sin evento vigente</span><h2>Últimos eventos</h2></div>
+      <a class="button" href="{{ url_for('eventos') }}">Eventos</a>
+    </div>
+    {% for e in ultimos_eventos %}
+    <a class="recent-event" href="{{ url_for('evento', evento_id=e['id']) }}">
+      <div><strong>{{ e['nombre'] }}</strong><span>{{ e['fecha'] }} · {{ 'Abierto' if e['estado']=='abierto' else 'Cerrado' }}</span></div>
+      <strong>{{ e['recaudacion']|money }}</strong>
+    </a>
+    {% else %}<p class="muted">Todavía no hay eventos.</p>{% endfor %}
     {% endif %}
+  </section>
+</div>
+
+<div class="section">
+  <div class="page-header"><h2>📅 Próximas actividades</h2><a class="button secondary small" href="{{ url_for('agenda') }}">Agenda</a></div>
+  {% for a in proximas_actividades %}
+  <div class="list-item">
+    <div><strong>{{ a['titulo'] }}</strong><small>{{ a['fecha'] }}{% if a['hora_inicio'] %} · {{ a['hora_inicio'] }}{% if a['hora_fin'] %}–{{ a['hora_fin'] }}{% endif %}{% endif %}</small></div>
+    <span class="role-badge">{{ a['tipo'] }}</span>
+  </div>
+  {% else %}<p class="muted">No hay actividades próximas.</p>{% endfor %}
 </div>
 {% endblock %}

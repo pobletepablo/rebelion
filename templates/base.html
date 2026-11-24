@@ -1,28 +1,44 @@
 <!doctype html><html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}Rebelión{% endblock %}</title>
-<link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}"></head>
-<body><header>
-<a href="{{url_for('index')}}" class="logo-container">
-  <img src="{{ url_for('static', filename='logo.png') }}" alt="Rebelión Logo" class="nav-logo">
-</a>
-<nav>
-<a href="{{url_for('index')}}">Inicio</a>
-<a href="{{url_for('productos')}}">Stock</a>
-<a href="{{url_for('eventos')}}">Eventos</a>
-<a href="{{url_for('agenda')}}">Agenda</a>
-{% if es_admin %}<a href="{{url_for('movimientos')}}">Movimientos</a>{% endif %}
-</nav>
-<div class="user-chip"><button type="button" class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema">☀️ / 🌙</button><button type="button" class="print-toggle is-off" id="printToggle" aria-label="Impresión automática desactivada" aria-pressed="false" title="Impresión automática desactivada">🖨</button><span class="user-name">{{usuario_nombre}}{% if es_admin %} · Admin{% endif %}</span><a href="{{url_for('salir')}}">Salir</a></div></header><main>
-{% with messages=get_flashed_messages(with_categories=true) %}{% for c,m in messages %}
-<div class="alert {{c}}">{{m}}</div>{% endfor %}{% endwith %}
-{% block content %}{% endblock %}</main><script>const savedTheme=localStorage.getItem("rebelion-theme")||"dark";document.documentElement.dataset.theme=savedTheme;const themeBtn=document.getElementById("themeToggle");if(themeBtn)themeBtn.addEventListener("click",()=>{const next=document.documentElement.dataset.theme==="dark"?"light":"dark";document.documentElement.dataset.theme=next;localStorage.setItem("rebelion-theme",next)});
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script>document.documentElement.dataset.theme=localStorage.getItem("rebelion-theme")||"dark"</script>
+</head>
+<body>
+<header>
+  <a href="{{ url_for('index') }}" class="logo-container"><img src="{{ url_for('static', filename='logo.png') }}" alt="Rebelión" class="nav-logo"></a>
+  <nav>
+    <a href="{{ url_for('index') }}">Inicio</a>
+    <a href="{{ url_for('productos') }}">Stock</a>
+    <a href="{{ url_for('eventos') }}">Eventos</a>
+    <a href="{{ url_for('agenda') }}">Agenda</a>
+    {% if es_admin %}<a href="{{ url_for('movimientos') }}">Movimientos</a><a href="{{ url_for('ajustes') }}">Ajustes</a>{% endif %}
+  </nav>
+  <div class="user-chip">
+    <button type="button" class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema">◐</button>
+    <button type="button" class="print-toggle is-off" id="printToggle" aria-pressed="false" title="Impresión automática desactivada">🖨</button>
+    <span class="user-name">{{ usuario_nombre }}{% if es_admin %} · Admin{% endif %}</span>
+    <a href="{{ url_for('salir') }}">Salir</a>
+  </div>
+</header>
+<main>
+{% with messages=get_flashed_messages(with_categories=true) %}{% for c,m in messages %}<div class="alert {{ c }}">{{ m }}</div>{% endfor %}{% endwith %}
+{% block content %}{% endblock %}
+</main>
+<footer>Rebelión Stock v{{ app_version }} · <a href="{{ url_for('versiones') }}">Historial de versiones</a></footer>
+<script>
+const themeBtn=document.getElementById('themeToggle');
+themeBtn.addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;try{localStorage.setItem('rebelion-theme',next)}catch(e){}});
 const printBtn=document.getElementById('printToggle');
-function setAutoPrint(enabled){
-  localStorage.setItem('rebelion-auto-print',enabled?'1':'0');
-  if(printBtn){printBtn.classList.toggle('is-on',enabled);printBtn.classList.toggle('is-off',!enabled);printBtn.setAttribute('aria-pressed',enabled?'true':'false');printBtn.setAttribute('aria-label',enabled?'Impresión automática activada':'Impresión automática desactivada');printBtn.title=enabled?'Impresión automática activada':'Impresión automática desactivada';}
-  const hidden=document.getElementById('printAutoValue');if(hidden)hidden.value=enabled?'1':'0';
+function autoPrintOn(){try{return localStorage.getItem('rebelion-auto-print')==='1'}catch(e){return false}}
+function setAutoPrint(on){
+  try{localStorage.setItem('rebelion-auto-print',on?'1':'0')}catch(e){}
+  const txt=on?'Impresión automática activada':'Impresión automática desactivada';
+  printBtn.classList.toggle('is-on',on);printBtn.classList.toggle('is-off',!on);
+  printBtn.setAttribute('aria-pressed',on);printBtn.setAttribute('aria-label',txt);printBtn.title=txt;
+  const hidden=document.getElementById('printAutoValue');if(hidden)hidden.value=on?'1':'0';
 }
-setAutoPrint(localStorage.getItem('rebelion-auto-print')==='1');
-if(printBtn)printBtn.addEventListener('click',()=>setAutoPrint(localStorage.getItem('rebelion-auto-print')!=='1'));
-</script></body></html>
+setAutoPrint(autoPrintOn());
+printBtn.addEventListener('click',()=>setAutoPrint(!autoPrintOn()));
+</script>
+</body></html>

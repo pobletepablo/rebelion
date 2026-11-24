@@ -1,68 +1,33 @@
-REBELION STOCK v3 — SERVIDOR WAITRESS
+REBELIÓN STOCK v3.5
 
-1) Ejecutá iniciar_rebelion.bat.
-2) La aplicación se ejecuta con Waitress en el puerto 5000.
-3) La base de datos se guarda como rebelion.db dentro de esta carpeta.
-4) Si usás Cloudflare Tunnel, apuntalo a:
-   cloudflared tunnel --url http://127.0.0.1:5000
+INICIO
+1) Ejecutá iniciar_rebelion.bat (la primera vez instala lo necesario).
+2) Abrí http://127.0.0.1:5000 en la PC, o la dirección "Red local" que muestra la consola en el celular (misma red).
+3) Con Cloudflare Tunnel: cloudflared tunnel --url http://127.0.0.1:5000
 
-NOVEDADES V3
+ACCESO
+- Cualquier nombre entra como invitado (vende, consulta stock y agenda, registra gastos).
+- La contraseña de administrador da acceso completo. Por defecto es 1917; se cambia con la variable de entorno REBELION_ADMIN_PASSWORD.
 
-EVENTOS
-- El evento se crea sin Bono Rebelión.
-- El bono se carga únicamente después de cerrar el evento.
-- El detalle del evento muestra el resultado considerando ventas, costos, pérdidas, gastos y bono.
+PRODUCTOS
+- Exacto: se descuenta unidad por unidad.
+- Por rendimiento: 1 botella de fernet = 20 vasos. Costo = botella, precio = vaso. Vender 5 vasos descuenta 0,25 botella.
+- Libre: se registra lo vendido, sin stock exacto (ej.: sanguches de bondiola).
+- Foto opcional (JPG, PNG o WEBP, hasta 10 MB): aparece en el botón de venta.
 
-PRODUCTOS POR RENDIMIENTO
-Ejemplo:
-- Producto: Vaso de fernet
-- Unidad de stock: botella
-- Unidad de venta: vaso
-- Rendimiento: 20
-- Costo: costo de una botella
-- Precio: precio de un vaso
+DINERO
+- Caja = ventas + bonos − gastos.
+- Ganancia = margen de ventas − pérdidas − gastos + bono.
+- El Bono Rebelión se carga al cerrar el evento.
 
-Si hay 10 botellas, el sistema calcula aproximadamente 200 vasos disponibles.
-Si se venden 5 vasos, descuenta 0,25 botella del stock.
+TICKETS
+- Venta: activá el botón 🖨 de la cabecera para imprimir cada comprobante al confirmar (queda guardado en ese navegador).
+- Balance: al cerrar el evento se abre listo para imprimir (80 mm).
+- Ajustes (admin): cambia los títulos, pies y contacto de los tickets. El logo es static/logo_ticket.png (negro, para papel).
 
-DISPONIBILIDAD LIBRE
-Para productos cuya cantidad preparada no se conoce exactamente, por ejemplo:
-- Sandwich de bondiola
-- Comida preparada hasta agotar
+DATOS
+- Todo se guarda en rebelion.db junto a la app. Copiá ese archivo antes de actualizar.
+- Las bases de versiones anteriores se actualizan solas.
 
-Se configura el producto como "Disponibilidad libre". Las ventas se registran normalmente, pero no se exige un stock inicial ni se descuenta stock físico.
-
-CAJA VS GANANCIA
-- Caja disponible = ventas + bonos - gastos.
-- Ganancia neta = margen de ventas - pérdidas - gastos + bonos.
-
-La caja indica cuánto dinero queda disponible.
-La ganancia indica el resultado económico considerando el costo de los productos.
-
-BASE DE DATOS
-La base se guarda en:
-rebelion.db
-
-Al actualizar desde V2, V3 agrega automáticamente las nuevas columnas necesarias. No debería ser necesario borrar la base existente.
-
-RESPALDO
-Antes de actualizar una instalación existente, se recomienda copiar rebelion.db como respaldo.
-
-V3.3 - CAMBIOS
-- Para entrar: cualquier nombre sirve como invitado. La contraseña 1917 habilita el modo administrador.
-- En cada evento se pueden registrar gastos directamente.
-- Desde Evento se puede abrir e imprimir el resumen de balance en ticket de 80 mm.
-- La pestaña Caja dejó de mostrarse en el menú porque sus funciones pasan al evento.
-- En Ventas los productos se seleccionan tocando sus tarjetas con icono; se mantiene cantidad +/-. 
-
-
-FOTOS DE PRODUCTOS (V3.3.1)
-Para agregar una foto a un producto, ingresá a Stock > Editar y seleccioná una imagen JPG, PNG o WEBP (máximo 5 MB). La imagen aparecerá en la tarjeta de ese producto al registrar una venta. Si no cargás una foto, se mantiene el ícono automático por categoría.
-
-
-NOVEDADES V3.4
-- El invitado entra automáticamente al Modo Evento cuando hay un evento abierto. El administrador siempre entra al panel completo.
-- Tema claro/oscuro: botón en la barra superior; la elección queda guardada en ese navegador.
-- En ventas, activá “Imprimir ticket automáticamente” para imprimir cada comprobante individual al confirmar. La preferencia queda guardada en ese navegador.
-- Al cerrar un evento, cargá el Bono Rebelión en ese mismo paso. Se abre el balance consolidado y se lanza la impresión. El balance agrupa las ventas por producto; no imprime una línea por cada operación.
-- Los tickets utilizan el archivo static/logo.png.
+VERSIONES
+- Pantalla "Historial de versiones" (pie de cada página) o CHANGELOG.md.

@@ -1,1 +1,19 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ticket de venta #{{venta['id']}}</title><link rel="stylesheet" href="{{url_for('static',filename='style.css')}}"></head><body class="ticket-page"><div class="print-actions"><button onclick="window.print()">🖨 Imprimir</button><button onclick="history.back()">Volver</button></div><main class="ticket"><img src="{{url_for('static',filename='logo.png')}}" alt="Rebelión" class="ticket-logo"><h2>COMPROBANTE DE VENTA</h2><div class="center">{{venta['evento_nombre']}}<br>{{venta['fecha_hora']}}<br>Ticket #{{venta['id']}}</div><div class="line"></div>{% for i in items %}<div class="ticket-row"><span>{{i['cantidad']|int_fmt}} {{i['unidad']}} {{i['nombre']}}</span><span>{{i['total']|money}}</span></div>{% endfor %}<div class="line"></div><div class="ticket-row"><strong>TOTAL</strong><strong>{{venta['total']|money}}</strong></div><div class="ticket-row"><span>Pago</span><span>{{'Efectivo' if venta['medio_pago']=='efectivo' else 'Transferencia'}}</span></div><div class="line"></div><div class="ticket-note">Gracias por colaborar<br>@rebelion.lp</div></main><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),250));</script></body></html>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ticket #{{ venta['id'] }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='ticket.css') }}"></head>
+<body>
+<div class="print-actions"><button onclick="window.print()">🖨 Imprimir</button><a class="secondary" href="{{ url_for('nueva_venta', evento_id=venta['evento_id']) }}">Nueva venta</a></div>
+<main class="ticket">
+<img src="{{ url_for('static', filename='logo_ticket.png') }}" alt="Rebelión" class="ticket-logo">
+<h2>{{ textos['venta_titulo'] }}</h2>
+<div class="center">{{ venta['evento_nombre'] }}<br>{{ venta['fecha_hora'] }}<br>Ticket #{{ venta['id'] }}</div>
+<div class="line"></div>
+{% for i in items %}<div class="ticket-row"><span>{{ i['cantidad']|int_fmt }} {{ i['unidad'] }} {{ i['nombre'] }}</span><span>{{ i['total']|money }}</span></div>{% endfor %}
+<div class="line"></div>
+<div class="ticket-row ticket-total"><span>TOTAL</span><span>{{ venta['total']|money }}</span></div>
+<div class="ticket-row"><span>Pago</span><span>{{ 'Efectivo' if venta['medio_pago']=='efectivo' else 'Transferencia' }}</span></div>
+<div class="line"></div>
+<div class="ticket-note">{{ textos['venta_pie'] }}{% if textos['contacto'] %}
+{{ textos['contacto'] }}{% endif %}</div>
+</main>
+<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),250));</script>
+</body></html>

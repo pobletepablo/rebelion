@@ -1,12 +1,20 @@
-{% extends "base.html" %}{% block title %}Productos eliminados - Rebelión{% endblock %}{% block content %}
-<div class="page-header"><h1>Productos eliminados</h1><a class="button secondary" href="{{url_for('productos')}}">← Volver al stock</a></div>
-{% if not productos %}
-<p>No hay productos eliminados.</p>
-{% else %}
-<table><tr><th>Producto</th><th>Categoría</th><th>Último stock</th><th>Costo</th><th>Venta</th><th>Reactivar</th></tr>
-{% for p in productos %}<tr><td>{{p["nombre"]}}</td><td>{{p["categoria"]}}</td>
-<td>{{p["stock"]|int_fmt}} {{p["unidad"]}}</td><td>{{p["costo"]|money}}</td><td>{{p["precio"]|money}}</td>
-<td><form method="POST" action="{{url_for('reactivar_producto',producto_id=p['id'])}}">
-<button class="button small">Reactivar</button></form></td></tr>{% endfor %}</table>
-{% endif %}
+{% extends "base.html" %}
+{% block title %}Eliminados · Rebelión{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Productos eliminados</h1><a class="button secondary small" href="{{ url_for('productos') }}">← Stock</a></div>
+{% if productos %}
+<table class="stack">
+  <thead><tr><th>Producto</th><th>Categoría</th><th>Último stock</th><th>Costo</th><th>Venta</th><th></th></tr></thead>
+  <tbody>
+  {% for p in productos %}<tr>
+    <td class="title"><strong>{{ p['nombre'] }}</strong></td>
+    <td data-label="Categoría">{{ p['categoria'] }}</td>
+    <td data-label="Último stock">{{ p['stock']|num_fmt }} {{ p['unidad_stock'] }}</td>
+    <td data-label="Costo">{{ p['costo']|money }}</td>
+    <td data-label="Venta">{{ p['precio']|money }}</td>
+    <td class="actions"><form method="POST" action="{{ url_for('reactivar_producto', producto_id=p['id']) }}"><button class="button small">Reactivar</button></form></td>
+  </tr>{% endfor %}
+  </tbody>
+</table>
+{% else %}<p class="muted">No hay productos eliminados.</p>{% endif %}
 {% endblock %}

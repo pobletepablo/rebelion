@@ -2,10 +2,10 @@
 setlocal
 cd /d "%~dp0"
 
-title Rebelion Stock v2
+title Rebelion Stock
 
 echo ============================================
-echo        INICIANDO REBELION STOCK v2
+echo        INICIANDO REBELION STOCK
 echo ============================================
 echo.
 
@@ -54,8 +54,8 @@ if errorlevel 1 (
 
 echo Iniciando servidor Waitress para tu PC y la red local...
 echo.
-echo IMPORTANTE: si Windows Firewall pregunta, permiti el acceso en
- echo "Redes privadas" para que otras personas de tu misma red puedan entrar.
+echo IMPORTANTE: si Windows Firewall pregunta, permiti el acceso en Redes privadas
+echo para que otros dispositivos de tu red puedan entrar.
 echo.
 "%VENV_PYTHON%" app.py
 set "APP_ERROR=%errorlevel%"

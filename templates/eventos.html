@@ -1,116 +1,77 @@
 {% extends "base.html" %}
-{% block title %}Eventos - Rebelión{% endblock %}
+{% block title %}Eventos · Rebelión{% endblock %}
 {% block content %}
-<div class="page-header">
-    <div>
-        <h1>Eventos</h1>
-        <p class="muted">Primero el evento vigente, después la creación y el historial.</p>
-    </div>
-</div>
+<div class="page-header"><h1>Eventos</h1></div>
 
 {% if evento %}
 <div class="section current-event">
-    <div class="page-header">
-        <div>
-            <span class="status-badge is-open"><span class="dot"></span>Vigente</span>
-            <h2>{{evento["nombre"]}}</h2>
-            <p class="muted">{{evento["fecha"]}}</p>
-        </div>
-        <div style="text-align:right;">
-            <span class="muted" style="display:block; font-size:.85rem;">Recaudación</span>
-            <strong style="font-size:1.4rem;">{{evento["recaudacion"]|money}}</strong>
-        </div>
-    </div>
-    <a class="button" href="{{url_for('evento',evento_id=evento['id'])}}" style="margin-top:15px; display:inline-block;">Abrir evento</a> <a class="button secondary" href="{{url_for('ticket_evento',evento_id=evento['id'])}}" target="_blank" style="margin-top:15px; display:inline-block;">🖨 Balance</a>
+  <div class="page-header">
+    <div><span class="status-badge is-open"><span class="dot"></span>Vigente</span><h2>{{ evento['nombre'] }}</h2><p class="muted">{{ evento['fecha'] }}</p></div>
+    <div style="text-align:right"><span class="muted" style="display:block;font-size:.85rem">Recaudación</span><strong style="font-size:1.4rem">{{ evento['recaudacion']|money }}</strong></div>
+  </div>
+  <div class="inline-form" style="margin-top:14px">
+    <a class="button" href="{{ url_for('evento', evento_id=evento['id']) }}">Abrir evento</a>
+    <a class="button secondary" href="{{ url_for('ticket_evento', evento_id=evento['id']) }}" target="_blank" rel="noopener">🖨 Balance</a>
+  </div>
 </div>
-{% endif %}
-
+{% elif es_admin %}
 <div class="section">
-    <h2>➕ Crear evento</h2>
-    <form method="POST" action="{{url_for('nuevo_evento')}}" class="form">
-        <label>Nombre</label>
-        <input name="nombre" placeholder="Ej: Festival Rebelión" required>
-        <label>Fecha</label>
-        <input type="date" name="fecha" value="{{hoy}}" required>
-        <label>Notas</label>
-        <textarea name="notas" placeholder="Opcional"></textarea>
+  <h2>Crear evento</h2>
+  <form method="POST" action="{{ url_for('nuevo_evento') }}" class="form">
+    <label for="nombre">Nombre</label><input id="nombre" name="nombre" placeholder="Ej: Festival Rebelión" required>
+    <label for="fecha">Fecha</label><input id="fecha" type="date" name="fecha" value="{{ hoy }}" required>
+    <label for="notas">Notas</label><textarea id="notas" name="notas" placeholder="Opcional"></textarea>
 
-        <div class="responsables-builder">
-            <div class="page-header">
-                <div>
-                    <h3>Responsables</h3>
-                    <p class="muted">Al menos una persona por evento. Podés asignar turnos de caja, cocina o un responsable general.</p>
-                </div>
-                <button type="button" class="button secondary small" id="agregar-responsable">＋ Agregar responsable</button>
-            </div>
-            <div id="responsables-list">
-                <div class="responsable-row">
-                    <input name="responsable_nombre" placeholder="Nombre" required>
-                    <select name="responsable_rol">
-                        <option>General</option><option>Caja</option><option>Cocina</option>
-                    </select>
-                    <input type="time" name="responsable_inicio" aria-label="Inicio">
-                    <input type="time" name="responsable_fin" aria-label="Fin">
-                    <input name="responsable_notas" placeholder="Nota (opcional)">
-                    <button type="button" class="button small danger-outline quitar-responsable" title="Quitar">×</button>
-                </div>
-            </div>
+    <div class="responsables-builder">
+      <div class="page-header">
+        <div><h3>Responsables</h3><p class="muted">Al menos uno, con turno opcional.</p></div>
+        <button type="button" class="button secondary small" id="agregar-responsable">＋ Agregar</button>
+      </div>
+      <div id="responsables-list">
+        <div class="responsable-row">
+          <input name="responsable_nombre" placeholder="Nombre" required aria-label="Nombre">
+          <select name="responsable_rol" aria-label="Rol"><option>General</option><option>Caja</option><option>Cocina</option></select>
+          <input type="time" name="responsable_inicio" aria-label="Inicio"><input type="time" name="responsable_fin" aria-label="Fin">
+          <input name="responsable_notas" placeholder="Nota (opcional)" aria-label="Nota">
+          <button type="button" class="button small danger-outline quitar-responsable" aria-label="Quitar">×</button>
         </div>
-        <button class="button">Crear evento</button>
-    </form>
+      </div>
+    </div>
+    <button class="button">Crear evento</button>
+  </form>
 </div>
 <script>
 (function(){
   const list=document.getElementById('responsables-list');
-  const add=document.getElementById('agregar-responsable');
-  function row(){
-    const el=document.createElement('div');
-    el.className='responsable-row';
-    el.innerHTML=`<input name="responsable_nombre" placeholder="Nombre">
-      <select name="responsable_rol"><option>General</option><option>Caja</option><option>Cocina</option></select>
-      <input type="time" name="responsable_inicio" aria-label="Inicio">
-      <input type="time" name="responsable_fin" aria-label="Fin">
-      <input name="responsable_notas" placeholder="Nota (opcional)">
-      <button type="button" class="button small danger-outline quitar-responsable" title="Quitar">×</button>`;
-    return el;
-  }
-  add.addEventListener('click',()=>list.appendChild(row()));
-  list.addEventListener('click',(e)=>{
-    if(e.target.classList.contains('quitar-responsable')){
-      const rows=list.querySelectorAll('.responsable-row');
-      if(rows.length>1) e.target.closest('.responsable-row').remove();
-    }
+  document.getElementById('agregar-responsable').addEventListener('click',()=>{
+    const first=list.querySelector('.responsable-row'),el=first.cloneNode(true);
+    el.querySelectorAll('input').forEach(i=>i.value='');el.querySelector('select').selectedIndex=0;
+    el.querySelector('[name=responsable_nombre]').required=false;list.appendChild(el);
+  });
+  list.addEventListener('click',e=>{
+    if(e.target.classList.contains('quitar-responsable')&&list.children.length>1)e.target.closest('.responsable-row').remove();
   });
 })();
 </script>
+{% else %}
+<div class="section"><p class="muted">No hay un evento vigente. Un administrador puede crear uno.</p></div>
+{% endif %}
 
 <div class="section">
-    <div class="page-header">
-        <h2>Historial de eventos</h2>
-    </div>
-    {% if eventos %}
-    <table>
-        <tr>
-            <th>Evento</th>
-            <th>Fecha</th>
-            <th>Bono</th>
-            <th>Recaudación</th>
-            <th>Estado</th>
-            <th></th>
-        </tr>
-        {% for e in eventos %}
-        <tr>
-            <td><strong>{{e["nombre"]}}</strong></td>
-            <td>{{e["fecha"]}}</td>
-            <td>{{e["bono_rebelion"]|money}}</td>
-            <td>{{e["recaudacion"]|money}}</td>
-            <td><span class="status-badge"><span class="dot"></span>Cerrado</span></td>
-            <td><a class="button small" href="{{url_for('evento',evento_id=e['id'])}}">Ver</a></td>
-        </tr>
-        {% endfor %}
-    </table>
-    {% else %}
-    <p class="muted">Todavía no hay eventos cerrados.</p>
-    {% endif %}
+  <h2>Historial</h2>
+  {% if eventos %}
+  <table class="stack">
+    <thead><tr><th>Evento</th><th>Fecha</th><th class="num">Bono</th><th class="num">Recaudación</th><th></th></tr></thead>
+    <tbody>
+    {% for e in eventos %}<tr>
+      <td class="title"><strong>{{ e['nombre'] }}</strong></td>
+      <td data-label="Fecha">{{ e['fecha'] }}</td>
+      <td data-label="Bono" class="num">{{ e['bono_rebelion']|money }}</td>
+      <td data-label="Recaudación" class="num">{{ e['recaudacion']|money }}</td>
+      <td class="actions"><a class="button small" href="{{ url_for('evento', evento_id=e['id']) }}">Ver</a></td>
+    </tr>{% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">Todavía no hay eventos cerrados.</p>{% endif %}
 </div>
 {% endblock %}

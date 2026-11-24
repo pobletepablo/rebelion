@@ -108,6 +108,11 @@ def init_db():
         estado TEXT NOT NULL DEFAULT 'programada'
     );
 
+    CREATE TABLE IF NOT EXISTS config (
+        clave TEXT PRIMARY KEY,
+        valor TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_productos_activo ON productos(activo);
     CREATE INDEX IF NOT EXISTS idx_eventos_estado_fecha ON eventos(estado, fecha DESC);
     CREATE INDEX IF NOT EXISTS idx_ventas_evento ON ventas(evento_id);

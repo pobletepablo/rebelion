@@ -1,1 +1,15 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Entrar - Rebelión</title><link rel="stylesheet" href="{{url_for('static',filename='style.css')}}"></head><body class="login-page"><main class="login-card"><img src="{{url_for('static',filename='logo.png')}}" class="login-logo login-logo-large" alt="Rebelión"><form method="POST" class="form"><label>Nombre</label><input name="nombre" placeholder="Ej: Pablo" autocomplete="name" required><label>Contraseña <span class="muted">(solo administrador)</span></label><input id="password" type="password" name="password" inputmode="numeric" placeholder="Opcional"><button class="button" id="enterButton">Entrar como invitado</button></form></main><script>const p=document.getElementById('password'),b=document.getElementById('enterButton');function t(){b.textContent=p.value?'Entrar':'Entrar como invitado'}p.addEventListener('input',t);</script></body></html>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Entrar · Rebelión</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body class="login-page"><main class="login-card">
+<img src="{{ url_for('static', filename='logo.png') }}" class="login-logo" alt="Rebelión">
+{% with messages=get_flashed_messages(with_categories=true) %}{% for c,m in messages %}<div class="alert {{ c }}">{{ m }}</div>{% endfor %}{% endwith %}
+<form method="POST" class="form">
+  <label for="nombre">Nombre</label>
+  <input id="nombre" name="nombre" placeholder="Ej: Pablo" autocomplete="name" required>
+  <label for="password">Contraseña <span class="muted">(solo administrador)</span></label>
+  <input id="password" type="password" name="password" inputmode="numeric" placeholder="Opcional">
+  <button class="button" id="enterButton" style="width:100%">Entrar como invitado</button>
+</form>
+</main>
+<script>const p=document.getElementById('password'),b=document.getElementById('enterButton');p.addEventListener('input',()=>{b.textContent=p.value?'Entrar':'Entrar como invitado'});</script>
+</body></html>

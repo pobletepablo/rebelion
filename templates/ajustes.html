@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Ajustes · Rebelión{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Ajustes</h1></div>
+<div class="section narrow-section">
+  <h2>Textos de los tickets</h2>
+  <p class="muted">El logo y los importes no cambian. Dejá un campo vacío para volver a su texto original.</p>
+  <form method="POST" class="form">
+    <label for="venta_titulo">Título del comprobante de venta</label>
+    <input id="venta_titulo" name="venta_titulo" maxlength="60" value="{{ textos['venta_titulo'] }}">
+    <label for="venta_pie">Pie del comprobante de venta</label>
+    <textarea id="venta_pie" name="venta_pie" rows="2" maxlength="160">{{ textos['venta_pie'] }}</textarea>
+    <label for="balance_titulo">Título del balance del evento</label>
+    <input id="balance_titulo" name="balance_titulo" maxlength="60" value="{{ textos['balance_titulo'] }}">
+    <label for="balance_pie">Pie del balance del evento</label>
+    <textarea id="balance_pie" name="balance_pie" rows="2" maxlength="160">{{ textos['balance_pie'] }}</textarea>
+    <label for="contacto">Contacto (última línea de ambos tickets)</label>
+    <input id="contacto" name="contacto" maxlength="60" value="{{ textos['contacto'] }}" placeholder="Ej: @rebelion.lp">
+    <button class="button">Guardar</button>
+  </form>
+  <form method="POST" style="margin-top:12px" onsubmit="return confirm('¿Volver a los textos originales?')">
+    <input type="hidden" name="accion" value="restablecer"><button class="button secondary">Restablecer originales</button>
+  </form>
+</div>
+{% endblock %}

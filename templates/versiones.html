@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Versiones · Rebelión{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Historial de versiones</h1><span class="role-badge">Actual: v{{ app_version }}</span></div>
+{% for c in cambios %}
+<details class="version" {{ 'open' if loop.first }}>
+  <summary><span class="tag">{{ c['version'] }}</span><strong>{{ c['titulo'] }}</strong>{% if c['fecha'] %}<span class="when">{{ c['fecha'] }}</span>{% endif %}</summary>
+  <ul>{% for x in c['cambios'] %}<li>{{ x }}</li>{% endfor %}</ul>
+</details>
+{% endfor %}
+{% endblock %}

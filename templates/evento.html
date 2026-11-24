@@ -1,209 +1,158 @@
 {% extends "base.html" %}
-{% block title %}{{evento["nombre"]}}{% endblock %}
+{% block title %}{{ evento['nombre'] }}{% endblock %}
 {% block content %}
+{% set abierto = evento['estado']=='abierto' %}
 <div class="page-header">
-    <div>
-        <span class="status-badge {{ 'is-open' if evento['estado']=='abierto' else '' }}"><span class="dot"></span>{{ 'Vigente' if evento["estado"] == "abierto" else 'Cerrado' }}</span>
-        <h1>{{evento["nombre"]}}</h1>
-        <p class="muted">{{evento["fecha"]}}</p>
-    </div>
-    <a href="{{ url_for('exportar_evento', evento_id=evento['id']) }}" class="button excel">📥 Exportar evento</a>
+  <div>
+    <span class="status-badge {{ 'is-open' if abierto }}"><span class="dot"></span>{{ 'Vigente' if abierto else 'Cerrado' }}</span>
+    <h1>{{ evento['nombre'] }}</h1>
+    <p class="muted">{{ evento['fecha'] }}</p>
+  </div>
+  {% if es_admin %}<a href="{{ url_for('exportar_evento', evento_id=evento['id']) }}" class="button excel">📥 Excel</a>{% endif %}
 </div>
 
-<div class="hero-stat">
-    <span>💰 Caja del evento</span>
-    <strong>{{caja_evento|money}}</strong>
-    <small>Recaudación + bono − gastos</small>
-</div>
-
+<div class="hero-stat"><span>💰 Caja del evento</span><strong>{{ caja_evento|money }}</strong><small>Recaudación + bono − gastos</small></div>
 <div class="stat-row">
-    <div class="card">
-        <span>Recaudación</span>
-        <strong>{{recaudacion|money}}</strong>
-    </div>
-    <div class="card">
-        <span>💵 Efectivo</span>
-        <strong>{{efectivo|money}}</strong>
-    </div>
-    <div class="card">
-        <span>💳 Transferencia</span>
-        <strong>{{transferencia|money}}</strong>
-    </div>
-    <div class="card">
-        <span>💸 Gastos del evento</span>
-        <strong class="danger-text">{{total_gastos_evento|money}}</strong>
-    </div>
-    <div class="card">
-        <span>Resultado del evento</span>
-        <strong>{{resultado_evento|money}}</strong>
-        <small>Ganancia después de costos, pérdidas, gastos y bono</small>
-    </div>
+  <div class="card"><span>Recaudación</span><strong>{{ recaudacion|money }}</strong></div>
+  <div class="card"><span>💵 Efectivo</span><strong>{{ efectivo|money }}</strong></div>
+  <div class="card"><span>💳 Transferencia</span><strong>{{ transferencia|money }}</strong></div>
+  <div class="card"><span>💸 Gastos</span><strong class="danger-text">{{ total_gastos_evento|money }}</strong></div>
+  <div class="card"><span>Resultado</span><strong>{{ resultado_evento|money }}</strong><small>Tras costos, pérdidas, gastos y bono</small></div>
 </div>
 
-{% if evento["estado"] == "abierto" %}
 <div class="action-bar">
-    <a class="button" href="{{url_for('nueva_venta',evento_id=evento['id'])}}">＋ Registrar venta</a>
-    <a class="button secondary danger-outline" href="{{url_for('nueva_perdida',evento_id=evento['id'])}}">Registrar pérdida</a>
-    {% if es_admin %}<form method="POST" action="{{url_for('cerrar_evento',evento_id=evento['id'])}}" class="close-event-form">
-        <label>Bono Rebelión de cierre ($) <input type="number" name="bono_rebelion" min="0" step="0.01" value="0"></label>
-        <button class="button danger" onclick="return confirm('¿Cerrar el evento y generar el balance para imprimir?')">Cerrar evento e imprimir balance</button>
-    </form>{% endif %}
+  {% if abierto %}
+  <a class="button" href="{{ url_for('nueva_venta', evento_id=evento['id']) }}">＋ Registrar venta</a>
+  {% if es_admin %}<a class="button secondary danger-outline" href="{{ url_for('nueva_perdida', evento_id=evento['id']) }}">Registrar pérdida</a>{% endif %}
+  {% endif %}
+  <a class="button secondary" href="{{ url_for('ticket_evento', evento_id=evento['id']) }}" target="_blank" rel="noopener">🖨 Balance</a>
+</div>
+{% if abierto and es_admin %}
+<div class="section">
+  <h2>Cerrar evento</h2>
+  <form method="POST" action="{{ url_for('cerrar_evento', evento_id=evento['id']) }}" class="close-event-form">
+    <label>Bono Rebelión ($) <input type="number" name="bono_rebelion" min="0" step="0.01" value="0" inputmode="decimal"></label>
+    <button class="button danger" onclick="return confirm('¿Cerrar el evento e imprimir el balance?')">Cerrar e imprimir balance</button>
+  </form>
 </div>
 {% endif %}
 
 <div class="section">
-    <div class="page-header">
-        <div>
-            <h2>👥 Responsables del evento</h2>
-            <p class="muted">Caja, cocina y responsables generales, organizados por turno.</p>
-        </div>
-    </div>
-    {% if responsables %}
-    <div class="responsive-table">
-    <table>
-        <tr><th>Persona</th><th>Rol</th><th>Desde</th><th>Hasta</th><th>Notas</th><th></th></tr>
-        {% for r in responsables %}
-        <tr>
-            <td><strong>{{r["nombre"]}}</strong></td>
-            <td><span class="role-badge">{{r["rol"]}}</span></td>
-            <td>{{r["hora_inicio"] or "—"}}</td>
-            <td>{{r["hora_fin"] or "—"}}</td>
-            <td>{{r["notas"] or "—"}}</td>
-            <td><form method="POST" action="{{url_for('eliminar_responsable',evento_id=evento['id'],responsable_id=r['id'])}}" onsubmit="return confirm('¿Quitar este responsable?')"><button class="button small danger-outline" type="submit">×</button></form></td>
-        </tr>
-        {% endfor %}
-    </table>
-    </div>
-    {% else %}<p class="muted">No hay responsables cargados. Los eventos nuevos requieren al menos uno.</p>{% endif %}
-
-    {% if evento["estado"] == "abierto" %}
-    <form method="POST" action="{{url_for('agregar_responsable',evento_id=evento['id'])}}" class="responsable-inline-form">
-        <input name="nombre" placeholder="Nombre" required>
-        <select name="rol"><option>General</option><option>Caja</option><option>Cocina</option></select>
-        <input type="time" name="hora_inicio" aria-label="Inicio">
-        <input type="time" name="hora_fin" aria-label="Fin">
-        <input name="notas" placeholder="Nota (opcional)">
-        <button class="button">＋ Agregar</button>
-    </form>
-    {% endif %}
+  <h2>👥 Responsables</h2>
+  {% if responsables %}
+  <table class="stack">
+    <thead><tr><th>Persona</th><th>Rol</th><th>Desde</th><th>Hasta</th><th>Notas</th>{% if abierto %}<th></th>{% endif %}</tr></thead>
+    <tbody>
+    {% for r in responsables %}<tr>
+      <td class="title"><strong>{{ r['nombre'] }}</strong></td>
+      <td data-label="Rol"><span class="role-badge">{{ r['rol'] }}</span></td>
+      <td data-label="Desde">{{ r['hora_inicio'] or '—' }}</td>
+      <td data-label="Hasta">{{ r['hora_fin'] or '—' }}</td>
+      <td data-label="Notas">{{ r['notas'] or '—' }}</td>
+      {% if abierto %}<td class="actions">{% if es_admin %}<form method="POST" action="{{ url_for('eliminar_responsable', evento_id=evento['id'], responsable_id=r['id']) }}" onsubmit="return confirm('¿Quitar este responsable?')"><button class="button small danger-outline" aria-label="Quitar">×</button></form>{% endif %}</td>{% endif %}
+    </tr>{% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">Sin responsables cargados.</p>{% endif %}
+  {% if abierto and es_admin %}
+  <form method="POST" action="{{ url_for('agregar_responsable', evento_id=evento['id']) }}" class="responsable-inline-form">
+    <input name="nombre" placeholder="Nombre" required aria-label="Nombre">
+    <select name="rol" aria-label="Rol"><option>General</option><option>Caja</option><option>Cocina</option></select>
+    <input type="time" name="hora_inicio" aria-label="Inicio"><input type="time" name="hora_fin" aria-label="Fin">
+    <input name="notas" placeholder="Nota (opcional)" aria-label="Nota">
+    <button class="button">＋ Agregar</button>
+  </form>
+  {% endif %}
 </div>
 
 <div class="section">
-    <div class="page-header">
-        <div>
-            <h2>🎟 Bono Rebelión</h2>
-            {% if evento["estado"] == "cerrado" %}
-            <p class="muted">Se registra al cierre del evento.</p>
-            {% else %}
-            <p class="muted">Se habilitará cuando cierres el evento.</p>
-            {% endif %}
-        </div>
-        <strong class="section-amount">{{evento["bono_rebelion"]|money}}</strong>
-    </div>
-    {% if evento["estado"] == "cerrado" %}
-    <form method="POST" action="{{url_for('actualizar_bono', evento_id=evento['id'])}}" class="inline-form bonus-form">
-        <div class="input-prefix">
-            <span>$</span>
-            <input type="number" name="bono_rebelion" min="0" step="0.01" value="{{evento["bono_rebelion"]}}">
-        </div>
-        <button class="button secondary">Guardar bono de cierre</button>
-    </form>
-    {% endif %}
+  <div class="page-header">
+    <h2>🎟 Bono Rebelión</h2>
+    <strong class="section-amount">{{ evento['bono_rebelion']|money }}</strong>
+  </div>
+  {% if abierto %}<p class="muted">Se carga al cerrar el evento.</p>
+  {% elif es_admin %}
+  <form method="POST" action="{{ url_for('actualizar_bono', evento_id=evento['id']) }}" class="inline-form bonus-form">
+    <div class="input-prefix"><span>$</span><input type="number" name="bono_rebelion" min="0" step="0.01" inputmode="decimal" value="{{ evento['bono_rebelion'] }}" aria-label="Bono"></div>
+    <button class="button secondary">Guardar bono</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="section" id="gastos">
+  <div class="page-header"><h2>💸 Gastos</h2><strong class="section-amount">{{ total_gastos_evento|money }}</strong></div>
+  {% if abierto %}
+  <form method="POST" action="{{ url_for('nuevo_gasto_evento', evento_id=evento['id']) }}" class="event-expense-form">
+    <input name="concepto" placeholder="Concepto" required aria-label="Concepto">
+    <select name="categoria" aria-label="Categoría"><option>Materiales</option><option>Transporte</option><option>Comida</option><option>Evento</option><option>Impresiones</option><option>Otro</option></select>
+    <div class="input-prefix"><span>$</span><input type="number" name="monto" min="0.01" step="0.01" inputmode="decimal" placeholder="Monto" required aria-label="Monto"></div>
+    <input name="notas" placeholder="Nota (opcional)" aria-label="Nota">
+    <button class="button">＋ Gasto</button>
+  </form>
+  {% endif %}
+  {% if gastos_evento %}
+  <table class="stack">
+    <thead><tr><th>Fecha / Hora</th><th>Concepto</th><th>Categoría</th><th class="num">Monto</th><th>Notas</th>{% if es_admin %}<th></th>{% endif %}</tr></thead>
+    <tbody>
+    {% for g in gastos_evento %}<tr>
+      <td data-label="Fecha">{{ g['fecha_hora'] }}</td>
+      <td class="title"><strong>{{ g['concepto'] }}</strong></td>
+      <td data-label="Categoría">{{ g['categoria'] }}</td>
+      <td data-label="Monto" class="num danger-text">{{ g['monto']|money }}</td>
+      <td data-label="Notas">{{ g['notas'] or '—' }}</td>
+      {% if es_admin %}<td class="actions"><form method="POST" action="{{ url_for('eliminar_gasto', gasto_id=g['id']) }}" onsubmit="return confirm('¿Eliminar este gasto?')"><input type="hidden" name="volver" value="evento"><button class="button small danger-outline" aria-label="Eliminar">×</button></form></td>{% endif %}
+    </tr>{% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">Sin gastos en este evento.</p>{% endif %}
 </div>
 
 <div class="section">
-    <div class="page-header"><div><h2>💸 Gastos del evento</h2><p class="muted">Los gastos quedan asociados directamente a este evento.</p></div><a class="button secondary" href="{{url_for('ticket_evento',evento_id=evento['id'])}}" target="_blank">🖨 Imprimir balance</a></div>
-    {% if evento["estado"] == "abierto" %}<form method="POST" action="{{url_for('nuevo_gasto_evento',evento_id=evento['id'])}}" class="inline-form event-expense-form"><input name="concepto" placeholder="Concepto" required><select name="categoria"><option>Materiales</option><option>Transporte</option><option>Comida</option><option>Evento</option><option>Impresiones</option><option>Otro</option></select><div class="input-prefix"><span>$</span><input type="number" name="monto" min="0.01" step="0.01" placeholder="Monto" required></div><input name="notas" placeholder="Nota (opcional)"><button class="button">＋ Registrar gasto</button></form>{% endif %}
-
-<div class="section">
-    <div class="page-header">
-        <div>
-            <h2>💸 Gastos del evento</h2>
-            </div>
-        <strong class="section-amount">{{total_gastos_evento|money}}</strong>
-    </div>
-    {% if gastos_evento %}
-    <table>
-        <tr><th>Fecha / Hora</th><th>Concepto</th><th>Categoría</th><th>Monto</th><th>Notas</th></tr>
-        {% for g in gastos_evento %}
-        <tr><td>{{g["fecha_hora"]}}</td><td><strong>{{g["concepto"]}}</strong></td><td>{{g["categoria"]}}</td><td class="danger-text">{{g["monto"]|money}}</td><td>{{g["notas"]}}</td></tr>
-        {% endfor %}
-    </table>
-    {% else %}<p class="muted">No hay gastos asociados a este evento.</p>{% endif %}
+  <h2>Productos vendidos</h2>
+  <table class="stack">
+    <thead><tr><th>Producto</th><th class="num">Cantidad</th><th class="num">Recaudado</th><th class="num">Margen</th></tr></thead>
+    <tbody>
+    {% for p in productos_vendidos %}<tr>
+      <td class="title"><strong>{{ p['nombre'] }}</strong></td>
+      <td data-label="Cantidad" class="num">{{ p['cantidad']|int_fmt }} {{ p['unidad'] }}</td>
+      <td data-label="Recaudado" class="num">{{ p['total']|money }}</td>
+      <td data-label="Margen" class="num">{{ p['margen']|money }}</td>
+    </tr>{% else %}<tr><td class="empty" colspan="4"><span class="muted">Todavía no hay ventas.</span></td></tr>{% endfor %}
+    </tbody>
+  </table>
 </div>
 
 <div class="section">
-    <h2>Productos vendidos</h2>
-    <table>
-        <tr>
-            <th>Producto</th>
-            <th>Cantidad</th>
-            <th>Total recaudado</th>
-            <th>Margen</th>
-        </tr>
-        {% for p in productos_vendidos %}
-        <tr>
-            <td>{{p["nombre"]}}</td>
-            <td>{{p["cantidad"]|int_fmt}} {{p["unidad"]}}</td>
-            <td>{{p["total"]|money}}</td>
-            <td>{{p["margen"]|money}}</td>
-        </tr>
-        {% else %}
-        <tr><td colspan="4" class="muted">Aún no se registraron ventas en este evento.</td></tr>
-        {% endfor %}
-    </table>
+  <h2>Pérdidas</h2>
+  {% if perdidas_evento %}
+  <table class="stack">
+    <thead><tr><th>Producto</th><th class="num">Cantidad</th><th class="num">Costo</th><th>Motivo</th><th>Fecha / Hora</th></tr></thead>
+    <tbody>
+    {% for pe in perdidas_evento %}<tr>
+      <td class="title"><strong>{{ pe['producto_nombre'] }}</strong></td>
+      <td data-label="Cantidad" class="num danger-text">{{ pe['cantidad']|int_fmt }} {{ pe['unidad'] }}</td>
+      <td data-label="Costo" class="num">{{ pe['costo_total']|money }}</td>
+      <td data-label="Motivo">{{ pe['motivo'] }}</td>
+      <td data-label="Fecha">{{ pe['fecha_hora'] }}</td>
+    </tr>{% endfor %}
+    </tbody>
+  </table>
+  <p class="loss-total">Costo total: <strong>{{ valor_total_perdidas|money }}</strong></p>
+  {% else %}<p class="muted">Sin pérdidas.</p>{% endif %}
 </div>
 
 <div class="section">
-    <h2>Pérdidas</h2>
-    {% if perdidas_evento %}
-    <table>
-        <tr>
-            <th>Producto</th>
-            <th>Cantidad</th>
-            <th>Costo perdido</th>
-            <th>Motivo</th>
-            <th>Fecha / Hora</th>
-        </tr>
-        {% for pe in perdidas_evento %}
-        <tr>
-            <td><strong>{{pe["producto_nombre"]}}</strong></td>
-            <td class="danger-text">{{pe["cantidad"]|int_fmt}} {{pe["unidad"]}}</td>
-            <td>{{pe["costo_total"]|money}}</td>
-            <td>{{pe["motivo"]}}</td>
-            <td>{{pe["fecha_hora"]}}</td>
-        </tr>
-        {% endfor %}
-    </table>
-    <p class="loss-total">Costo total de pérdidas: <strong>{{valor_total_perdidas|money}}</strong></p>
-    {% else %}
-    <p class="muted">No se han registrado pérdidas en este evento.</p>
-    {% endif %}
-</div>
-
-<div class="section">
-    <h2>Historial de ventas</h2>
-    <table>
-        <tr>
-            <th>ID</th>
-            <th>Hora</th>
-            <th>Medio de pago</th>
-            <th>Total</th>
-        </tr>
-        {% for v in ventas %}
-        <tr>
-            <td>#{{v["id"]}}</td>
-            <td>{{v["fecha_hora"]}}</td>
-            <td>
-                {% if v["medio_pago"] == "efectivo" %}💵 Efectivo
-                {% elif v["medio_pago"] == "transferencia" %}💳 Transferencia
-                {% else %}{{v["medio_pago"]|capitalize}} <span class="muted">(histórico)</span>{% endif %}
-            </td>
-            <td><strong>{{v["total"]|money}}</strong></td>
-        </tr>
-        {% else %}
-        <tr><td colspan="4" class="muted">No hay ventas registradas.</td></tr>
-        {% endfor %}
-    </table>
+  <h2>Ventas</h2>
+  <table class="stack">
+    <thead><tr><th>N°</th><th>Hora</th><th>Pago</th><th class="num">Total</th></tr></thead>
+    <tbody>
+    {% for v in ventas %}<tr>
+      <td class="title"><strong>#{{ v['id'] }}</strong></td>
+      <td data-label="Hora">{{ v['fecha_hora'] }}</td>
+      <td data-label="Pago">{% if v['medio_pago']=='efectivo' %}💵 Efectivo{% elif v['medio_pago']=='transferencia' %}💳 Transferencia{% else %}{{ v['medio_pago']|capitalize }}{% endif %}</td>
+      <td data-label="Total" class="num"><strong>{{ v['total']|money }}</strong></td>
+    </tr>{% else %}<tr><td class="empty" colspan="4"><span class="muted">Sin ventas.</span></td></tr>{% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}

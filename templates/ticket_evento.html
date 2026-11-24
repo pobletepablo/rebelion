@@ -1,1 +1,29 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Balance - {{evento['nombre']}}</title><link rel="stylesheet" href="{{url_for('static',filename='style.css')}}"></head><body class="ticket-page"><div class="print-actions"><button onclick="window.print()">🖨 Imprimir balance</button> <button onclick="window.close()">Cerrar</button></div><main class="ticket"><img src="{{url_for('static',filename='logo.png')}}" alt="Rebelión" class="ticket-logo"><h2>RESUMEN DE ACTIVIDAD</h2><div class="center"><strong>{{evento['nombre']}}</strong><br>{{evento['fecha']}}</div><div class="line"></div><strong>VENTAS POR PRODUCTO</strong>{% for i in items %}<div class="ticket-row"><span>{{i['cantidad']|int_fmt}} {{i['unidad']}} {{i['nombre']}}</span><span>{{i['total']|money}}</span></div>{% else %}<div>Sin ventas</div>{% endfor %}<div class="line"></div><div class="ticket-row"><span>Transferencias</span><span>{{transferencia|money}}</span></div><div class="ticket-row"><span>Efectivo</span><span>{{efectivo|money}}</span></div><div class="ticket-row ticket-total"><span>RECAUDACIÓN</span><span>{{recaudacion|money}}</span></div><div class="line"></div><strong>GASTOS</strong>{% for g in gastos %}<div class="ticket-row"><span>{{g['concepto']}}</span><span>-{{g['monto']|money}}</span></div>{% else %}<div>Sin gastos</div>{% endfor %}<div class="ticket-row"><strong>TOTAL GASTOS</strong><strong>-{{total_gastos|money}}</strong></div>{% if perdidas %}<div class="ticket-row"><span>Pérdidas</span><span>-{{perdidas|money}}</span></div>{% endif %}{% if bono %}<div class="ticket-row"><span>Bono Rebelión</span><span>+{{bono|money}}</span></div>{% endif %}<div class="line"></div><div class="ticket-row ticket-total"><span>BALANCE FINAL</span><span>{{resultado|money}}</span></div><div class="line"></div><div class="ticket-note">Rendición consolidada · {{ventas|length}} operaciones<br>@rebelion.lp</div></main>{% if request.args.get('auto')=='1' %}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),350));</script>{% endif %}</body></html>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Balance · {{ evento['nombre'] }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='ticket.css') }}"></head>
+<body>
+<div class="print-actions"><button onclick="window.print()">🖨 Imprimir balance</button><a class="secondary" href="{{ url_for('evento', evento_id=evento['id']) }}">Volver al evento</a></div>
+<main class="ticket">
+<img src="{{ url_for('static', filename='logo_ticket.png') }}" alt="Rebelión" class="ticket-logo">
+<h2>{{ textos['balance_titulo'] }}</h2>
+<div class="center"><strong>{{ evento['nombre'] }}</strong><br>{{ evento['fecha'] }}</div>
+<div class="line"></div>
+<strong>VENTAS POR PRODUCTO</strong>
+{% for i in items %}<div class="ticket-row"><span>{{ i['cantidad']|int_fmt }} {{ i['unidad'] }} {{ i['nombre'] }}</span><span>{{ i['total']|money }}</span></div>{% else %}<div>Sin ventas</div>{% endfor %}
+<div class="line"></div>
+<div class="ticket-row"><span>Transferencias</span><span>{{ transferencia|money }}</span></div>
+<div class="ticket-row"><span>Efectivo</span><span>{{ efectivo|money }}</span></div>
+<div class="ticket-row ticket-total"><span>RECAUDACIÓN</span><span>{{ recaudacion|money }}</span></div>
+<div class="line"></div>
+<strong>GASTOS</strong>
+{% for g in gastos %}<div class="ticket-row"><span>{{ g['concepto'] }}</span><span>-{{ g['monto']|money }}</span></div>{% else %}<div>Sin gastos</div>{% endfor %}
+<div class="ticket-row"><strong>TOTAL GASTOS</strong><strong>-{{ total_gastos|money }}</strong></div>
+{% if perdidas %}<div class="ticket-row"><span>Pérdidas</span><span>-{{ perdidas|money }}</span></div>{% endif %}
+{% if bono %}<div class="ticket-row"><span>Bono Rebelión</span><span>+{{ bono|money }}</span></div>{% endif %}
+<div class="line"></div>
+<div class="ticket-row ticket-total"><span>BALANCE FINAL</span><span>{{ resultado|money }}</span></div>
+<div class="line"></div>
+<div class="ticket-note">{{ textos['balance_pie'] }} · {{ ventas|length }} operaciones{% if textos['contacto'] %}
+{{ textos['contacto'] }}{% endif %}</div>
+</main>
+{% if request.args.get('auto')=='1' %}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),350));</script>{% endif %}
+</body></html>
