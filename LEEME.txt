@@ -47,3 +47,22 @@ Al actualizar desde V2, V3 agrega automáticamente las nuevas columnas necesaria
 
 RESPALDO
 Antes de actualizar una instalación existente, se recomienda copiar rebelion.db como respaldo.
+
+V3.3 - CAMBIOS
+- Para entrar: cualquier nombre sirve como invitado. La contraseña 1917 habilita el modo administrador.
+- En cada evento se pueden registrar gastos directamente.
+- Desde Evento se puede abrir e imprimir el resumen de balance en ticket de 80 mm.
+- La pestaña Caja dejó de mostrarse en el menú porque sus funciones pasan al evento.
+- En Ventas los productos se seleccionan tocando sus tarjetas con icono; se mantiene cantidad +/-. 
+
+
+FOTOS DE PRODUCTOS (V3.3.1)
+Para agregar una foto a un producto, ingresá a Stock > Editar y seleccioná una imagen JPG, PNG o WEBP (máximo 5 MB). La imagen aparecerá en la tarjeta de ese producto al registrar una venta. Si no cargás una foto, se mantiene el ícono automático por categoría.
+
+
+NOVEDADES V3.4
+- El invitado entra automáticamente al Modo Evento cuando hay un evento abierto. El administrador siempre entra al panel completo.
+- Tema claro/oscuro: botón en la barra superior; la elección queda guardada en ese navegador.
+- En ventas, activá “Imprimir ticket automáticamente” para imprimir cada comprobante individual al confirmar. La preferencia queda guardada en ese navegador.
+- Al cerrar un evento, cargá el Bono Rebelión en ese mismo paso. Se abre el balance consolidado y se lanza la impresión. El balance agrupa las ventas por producto; no imprime una línea por cada operación.
+- Los tickets utilizan el archivo static/logo.png.

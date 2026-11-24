@@ -112,3 +112,42 @@ Versión anterior del sistema con:
 - Se reforzó el diseño responsive del Dashboard y de la pantalla de ventas.
 - Se priorizaron botones y controles táctiles con dimensiones consistentes.
 - El detalle del evento continúa concentrando la información operativa y financiera específica del evento.
+
+## V3.1.1 — Estética real de marca + corrección de bugs
+
+### Estética
+- Paleta de colores reemplazada por la del perfil de marca real (carbón #2B2B2C, coral, teal, mostaza) en vez de rojo/negro genérico.
+- Logo reemplazado por el isotipo real extraído del perfil de marca, con fondo transparente.
+- Tipografía de títulos: Anton (OFL, autohospedada en static/fonts/, no depende de internet) en vez de una condensada genérica.
+- Detalle decorativo de "estrella" en el hero del dashboard, inspirado en los destellos del perfil de marca.
+- Medios de pago (Efectivo/Transferencia) y tipos de agenda recoloreados con teal/mostaza en vez de verde/azul genéricos.
+
+### Bugs corregidos
+- Dashboard: "ganancias_local" no restaba los gastos totales por un error de orden de evaluación (`locals()` se consultaba antes de asignar la variable). No era visible en el dashboard actual (la variable no se renderiza en ningún template de esta versión) pero quedaba mal calculada.
+- Ventas de productos de disponibilidad libre no generaban ningún registro en `movimientos`: no aparecían en /movimientos ni en su exportación a Excel (sí se contaban bien en los totales del evento, que usan venta_items).
+- Ventas y pérdidas de productos con rendimiento (ej: fernet por vaso) registraban la cantidad en la unidad de stock (fracción de botella) pero la pantalla la etiquetaba como unidad de venta (vaso), mostrando números como "0,21 vaso" en vez de "3 vaso". El costo unitario tampoco se dividía por el rendimiento en ese registro.
+- La exportación a Excel del evento no restaba los gastos del "Resultado del evento", a diferencia de la pantalla del evento, que sí los restaba — dos números distintos para el mismo evento.
+- Cantidades en la exportación de movimientos ya se redondean a 2 decimales en vez de mostrar floats largos.
+
+## V3.3 - Ajustes de operación
+- Balance de actividad imprimible en formato ticket de 80 mm.
+- Gastos incorporados directamente dentro de cada evento.
+- Se elimina Caja del menú principal; los gastos y el balance se gestionan desde Evento.
+- Venta rápida con botones/iconos de productos en lugar de lista desplegable.
+- Acceso simple: cualquier nombre puede entrar como invitado; la contraseña fija 1917 da acceso de administrador.
+
+
+## V3.3.1 — Fotos de productos en ventas
+- Se puede cargar una foto JPG, PNG o WEBP al crear o editar un producto (máximo 5 MB).
+- Las fotos se muestran en las tarjetas de productos de la pantalla de venta; los productos sin foto conservan su ícono por categoría.
+- Se puede reemplazar o quitar la foto desde la edición del producto.
+- La base de datos incorpora una migración automática para el campo de imagen.
+
+
+## V3.4 — Modo Evento y tickets
+- Invitados: redirección automática al Modo Evento cuando existe un evento vigente; el administrador conserva el Dashboard completo.
+- Modo Evento con accesos rápidos a ventas, consulta de stock, agenda y responsables.
+- Selector de tema claro/oscuro con preferencia guardada en el navegador.
+- TPV: opción persistente para imprimir automáticamente el comprobante individual de cada venta.
+- Cierre de evento: carga del Bono Rebelión en el mismo paso y apertura automática del balance consolidado para imprimir.
+- Tickets con el logo gráfico de Rebelión; el balance agrupa las ventas por producto y muestra totales de recaudación, medios de pago, gastos, pérdidas y balance final.

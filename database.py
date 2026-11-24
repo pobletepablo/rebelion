@@ -36,7 +36,8 @@ def init_db():
         modo_stock TEXT NOT NULL DEFAULT 'exacto',
         unidad_stock TEXT NOT NULL DEFAULT 'unidad',
         unidad_venta TEXT NOT NULL DEFAULT 'unidad',
-        rendimiento REAL NOT NULL DEFAULT 1
+        rendimiento REAL NOT NULL DEFAULT 1,
+        imagen TEXT DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS eventos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,6 +130,7 @@ def init_db():
     _ensure_column(db, "productos", "unidad_stock", "TEXT NOT NULL DEFAULT 'unidad'")
     _ensure_column(db, "productos", "unidad_venta", "TEXT NOT NULL DEFAULT 'unidad'")
     _ensure_column(db, "productos", "rendimiento", "REAL NOT NULL DEFAULT 1")
+    _ensure_column(db, "productos", "imagen", "TEXT DEFAULT ''")
     # Compatibilidad: los productos creados en V2 usan la misma unidad para stock y venta.
     db.execute("""UPDATE productos
                   SET unidad_stock=unidad

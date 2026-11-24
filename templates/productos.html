@@ -2,11 +2,11 @@
 <div class="page-header"><h1>Stock</h1>
 <div>
 <a class="button secondary small" href="{{url_for('productos_eliminados')}}">Ver eliminados</a>
-<a class="button" href="{{url_for('nuevo_producto')}}">+ Nuevo producto</a>
+{% if es_admin %}<a class="button" href="{{url_for('nuevo_producto')}}">+ Nuevo producto</a>{% endif %}
 </div>
 </div>
 <table>
-<tr><th>Producto</th><th>Categoría</th><th>Disponibilidad</th><th>Costo</th><th>Venta</th><th>Margen</th><th>Movimiento / Ajuste</th><th>Editar</th><th>Eliminar</th></tr>
+<tr><th>Producto</th><th>Categoría</th><th>Disponibilidad</th><th>Costo</th><th>Venta</th><th>Margen</th>{% if es_admin %}<th>Movimiento / Ajuste</th><th>Editar</th><th>Eliminar</th>{% endif %}</tr>
 {% for p in productos %}
 <tr>
 <td><strong>{{p["nombre"]}}</strong><br><small class="muted">{{p["modo_stock"]|replace('exacto','Stock exacto')|replace('rendimiento','Por rendimiento')|replace('libre','Disponibilidad libre')}}</small></td>

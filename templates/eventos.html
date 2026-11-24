@@ -21,7 +21,7 @@
             <strong style="font-size:1.4rem;">{{evento["recaudacion"]|money}}</strong>
         </div>
     </div>
-    <a class="button" href="{{url_for('evento',evento_id=evento['id'])}}" style="margin-top:15px; display:inline-block;">Abrir evento</a>
+    <a class="button" href="{{url_for('evento',evento_id=evento['id'])}}" style="margin-top:15px; display:inline-block;">Abrir evento</a> <a class="button secondary" href="{{url_for('ticket_evento',evento_id=evento['id'])}}" target="_blank" style="margin-top:15px; display:inline-block;">🖨 Balance</a>
 </div>
 {% endif %}
 

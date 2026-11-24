@@ -4,8 +4,11 @@ import io
 import datetime
 import calendar
 import math
+import uuid
+from pathlib import Path
+from werkzeug.utils import secure_filename
 
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, g
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, g, session
 from waitress import serve
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -14,6 +17,10 @@ from openpyxl.utils import get_column_letter
 from database import get_db, init_db
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
+PRODUCT_IMAGE_DIR = Path(app.static_folder) / "productos"
+PRODUCT_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+ALLOWED_PRODUCT_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 # La clave de sesión y el modo debug ahora se configuran por variable de entorno.
 # Si no se define REBELION_SECRET_KEY, se genera una al arrancar (las sesiones/flash
 # se invalidan al reiniciar el server, pero nunca queda una clave fija en el código).
@@ -21,6 +28,37 @@ app.secret_key = os.environ.get("REBELION_SECRET_KEY") or os.urandom(24)
 DEBUG = os.environ.get("REBELION_DEBUG", "0") == "1"
 
 init_db()
+
+ADMIN_PASSWORD = "1917"
+
+
+@app.before_request
+def requerir_ingreso():
+    endpoint = request.endpoint or ""
+    if endpoint in {"login", "static"}:
+        return
+    if not session.get("nombre"):
+        return redirect(url_for("login"))
+
+    # Los invitados pueden operar el local, pero no administrar el sistema.
+    # No hay usuarios preconfigurados: cualquier nombre entra como invitado.
+    admin_only = {
+        "movimientos", "caja", "nuevo_gasto", "eliminar_gasto",
+        "nuevo_producto", "editar_producto", "eliminar_producto",
+        "productos_eliminados", "reactivar_producto", "modificar_stock",
+        "nuevo_evento", "agregar_responsable", "eliminar_responsable",
+        "actualizar_bono", "nueva_perdida", "cerrar_evento",
+        "eliminar_actividad", "exportar_caja", "exportar_movimientos",
+        "exportar_evento",
+    }
+    if endpoint in admin_only and not session.get("es_admin", False):
+        flash("Esta función es exclusiva del administrador.", "danger")
+        return redirect(url_for("index"))
+
+
+@app.context_processor
+def contexto_usuario():
+    return {"usuario_nombre": session.get("nombre"), "es_admin": session.get("es_admin", False)}
 
 
 # ================= CONEXIÓN A LA BASE (una por request, siempre se cierra) =================
@@ -100,6 +138,18 @@ def producto_config_form():
     return modo, unidad_stock, unidad_venta, rendimiento
 
 
+def guardar_imagen_producto(archivo, imagen_actual=""):
+    """Guarda una imagen de producto en static/productos y devuelve su nombre."""
+    if not archivo or not archivo.filename:
+        return imagen_actual or ""
+    extension = Path(secure_filename(archivo.filename)).suffix.lower()
+    if extension not in ALLOWED_PRODUCT_IMAGE_EXTENSIONS:
+        raise ValueError("Formato de imagen no permitido. Usá JPG, PNG o WEBP.")
+    nombre = f"{uuid.uuid4().hex}{extension}"
+    archivo.save(PRODUCT_IMAGE_DIR / nombre)
+    return nombre
+
+
 def rango_mes(mes_str):
     """Convierte 'YYYY-MM' en (inicio, fin_exclusivo) como strings comparables
     con fecha_hora (TEXT). A diferencia de strftime('%Y-%m', fecha_hora)=?,
@@ -111,6 +161,28 @@ def rango_mes(mes_str):
 
 
 # ================= RUTAS PRINCIPALES =================
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        nombre = request.form.get("nombre", "").strip()
+        password = request.form.get("password", "")
+        if not nombre:
+            flash("Ingresá tu nombre para entrar.", "danger")
+            return redirect(url_for("login"))
+        session.clear()
+        session["nombre"] = nombre
+        session["es_admin"] = password == ADMIN_PASSWORD
+        flash(f"Bienvenido/a, {nombre}.", "success")
+        return redirect(url_for("index"))
+    return render_template("login.html")
+
+
+@app.route("/salir")
+def salir():
+    session.clear()
+    return redirect(url_for("login"))
+
 
 @app.route("/")
 def index():
@@ -125,6 +197,13 @@ def index():
         FROM productos WHERE activo=1 ORDER BY nombre
     """).fetchall()
     stock_bajo = [p for p in productos if p["stock_bajo"]]
+
+    # Los invitados ingresan directamente al modo operativo si hay un evento vigente.
+    if not session.get("es_admin", False):
+        vigente = db.execute("SELECT id FROM eventos WHERE estado='abierto' ORDER BY fecha DESC,id DESC LIMIT 1").fetchone()
+        if vigente:
+            return redirect(url_for("nueva_venta", evento_id=vigente["id"]))
+        return redirect(url_for("modo_evento"))
 
     # Evento vigente: se toma el abierto más reciente.
     evento = db.execute("""
@@ -195,9 +274,12 @@ def index():
         FROM movimientos m JOIN productos p ON p.id=m.producto_id
         WHERE m.tipo='perdida'
     """).fetchone()[0]
-    ganancias_local = margen_total_ventas - perdidas_total + bono_total - gastos_total if 'gastos_total' in locals() else margen_total_ventas - perdidas_total + bono_total
-
     gastos_total = db.execute("SELECT COALESCE(SUM(monto),0) FROM gastos").fetchone()[0]
+    # BUG corregido: "gastos_total" se consultaba con locals() ANTES de estar
+    # asignada (la asignación estaba más abajo), así que Python siempre tomaba
+    # la rama que NO restaba gastos. "Ganancias del local" quedaba inflada por
+    # el total de gastos del local, en todos los eventos combinados.
+    ganancias_local = margen_total_ventas - perdidas_total + bono_total - gastos_total
     caja_disponible = recaudacion_total + bono_total - gastos_total
 
     ultimos_eventos = db.execute("""
@@ -236,6 +318,27 @@ def index():
                            mes_actual=mes_actual)
 
 
+@app.route("/modo-evento")
+@app.route("/modo-evento/<int:evento_id>")
+def modo_evento(evento_id=None):
+    db = get_conn()
+    if evento_id:
+        evento = db.execute("SELECT * FROM eventos WHERE id=?", (evento_id,)).fetchone()
+    else:
+        evento = db.execute("SELECT * FROM eventos WHERE estado='abierto' ORDER BY fecha DESC,id DESC LIMIT 1").fetchone()
+    if not evento:
+        agenda_proxima = db.execute("SELECT * FROM actividades WHERE fecha>=date('now','localtime') ORDER BY fecha,hora_inicio LIMIT 8").fetchall()
+        return render_template("modo_evento.html", evento=None, agenda=agenda_proxima, productos=[])
+    # Modo Evento es una entrada directa al punto de venta, no un menú intermedio.
+    # La pantalla de venta ya presenta los productos como botones con iconos/fotos.
+    if evento["estado"] == "abierto":
+        return redirect(url_for("nueva_venta", evento_id=evento["id"]))
+    responsables = db.execute("SELECT * FROM evento_responsables WHERE evento_id=? ORDER BY CASE rol WHEN 'Caja' THEN 1 WHEN 'Cocina' THEN 2 ELSE 3 END,hora_inicio", (evento["id"],)).fetchall()
+    productos = db.execute("SELECT * FROM productos WHERE activo=1 ORDER BY categoria,nombre").fetchall()
+    agenda_proxima = db.execute("SELECT * FROM actividades WHERE fecha>=date('now','localtime') ORDER BY fecha,hora_inicio LIMIT 8").fetchall()
+    return render_template("modo_evento.html", evento=evento, responsables=responsables, agenda=agenda_proxima, productos=productos)
+
+
 @app.route("/productos")
 def productos():
     db = get_conn()
@@ -253,6 +356,11 @@ def nuevo_producto():
         stock = form_float("stock")
         stock_minimo = form_float("stock_minimo")
         config = producto_config_form()
+        try:
+            imagen = guardar_imagen_producto(request.files.get("imagen"))
+        except ValueError as exc:
+            flash(str(exc), "danger")
+            return render_template("producto_form.html", producto=None)
 
         if not nombre or None in (costo, precio, stock, stock_minimo) or config is None:
             flash("Revisá los datos: nombre y los campos numéricos son obligatorios.", "danger")
@@ -268,10 +376,10 @@ def nuevo_producto():
 
         db = get_conn()
         cur = db.execute("""INSERT INTO productos
-            (nombre,categoria,costo,precio,stock,stock_minimo,unidad,modo_stock,unidad_stock,unidad_venta,rendimiento)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (nombre,categoria,costo,precio,stock,stock_minimo,unidad,modo_stock,unidad_stock,unidad_venta,rendimiento,imagen)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
             (nombre, categoria, costo, precio, stock, stock_minimo, unidad_venta,
-             modo, unidad_stock, unidad_venta, rendimiento))
+             modo, unidad_stock, unidad_venta, rendimiento, imagen))
         if stock > 0:
             db.execute("""INSERT INTO movimientos(producto_id,tipo,cantidad,motivo)
                           VALUES (?,'entrada',?,'Stock inicial')""", (cur.lastrowid, stock))
@@ -296,6 +404,13 @@ def editar_producto(producto_id):
         precio = form_float("precio")
         stock_minimo = form_float("stock_minimo")
         config = producto_config_form()
+        try:
+            imagen = guardar_imagen_producto(request.files.get("imagen"), producto["imagen"] or "")
+        except ValueError as exc:
+            flash(str(exc), "danger")
+            return render_template("producto_form.html", producto=producto)
+        if request.form.get("quitar_imagen") == "1":
+            imagen = ""
 
         if not nombre or None in (costo, precio, stock_minimo) or config is None:
             flash("Revisá los datos: nombre y los campos numéricos son obligatorios.", "danger")
@@ -311,10 +426,10 @@ def editar_producto(producto_id):
 
         db.execute("""UPDATE productos
                       SET nombre=?, categoria=?, costo=?, precio=?, stock_minimo=?, unidad=?,
-                          modo_stock=?, unidad_stock=?, unidad_venta=?, rendimiento=?
+                          modo_stock=?, unidad_stock=?, unidad_venta=?, rendimiento=?, imagen=?
                       WHERE id=?""",
                    (nombre, categoria, costo, precio, stock_minimo, unidad_venta,
-                    modo, unidad_stock, unidad_venta, rendimiento, producto_id))
+                    modo, unidad_stock, unidad_venta, rendimiento, imagen, producto_id))
         db.commit()
         flash("Producto actualizado correctamente.", "success")
         return redirect(url_for("productos"))
@@ -462,6 +577,26 @@ def nuevo_gasto():
     return redirect(url_for("caja"))
 
 
+@app.route("/eventos/<int:evento_id>/gasto", methods=["POST"])
+def nuevo_gasto_evento(evento_id):
+    concepto = request.form.get("concepto", "").strip()
+    categoria = request.form.get("categoria", "Otro").strip() or "Otro"
+    monto = form_float("monto")
+    notas = request.form.get("notas", "").strip()
+    db = get_conn()
+    evento = db.execute("SELECT id, estado FROM eventos WHERE id=?", (evento_id,)).fetchone()
+    if not evento:
+        return "Evento no encontrado", 404
+    if not concepto or monto is None or monto <= 0:
+        flash("Concepto y un monto mayor a 0 son obligatorios.", "danger")
+        return redirect(url_for("evento", evento_id=evento_id))
+    db.execute("INSERT INTO gastos(concepto,categoria,monto,evento_id,notas) VALUES(?,?,?,?,?)",
+               (concepto, categoria, monto, evento_id, notas))
+    db.commit()
+    flash("Gasto asociado al evento.", "success")
+    return redirect(url_for("evento", evento_id=evento_id))
+
+
 @app.route("/caja/gasto/<int:gasto_id>/eliminar", methods=["POST"])
 def eliminar_gasto(gasto_id):
     db = get_conn()
@@ -600,6 +735,34 @@ def evento(evento_id):
                            responsables=responsables)
 
 
+@app.route("/eventos/<int:evento_id>/ticket")
+def ticket_evento(evento_id):
+    db = get_conn()
+    evento = db.execute("SELECT * FROM eventos WHERE id=?", (evento_id,)).fetchone()
+    if not evento:
+        return "Evento no encontrado", 404
+    ventas = db.execute("SELECT * FROM ventas WHERE evento_id=? ORDER BY id ASC", (evento_id,)).fetchall()
+    items = db.execute("""SELECT p.nombre, p.unidad_venta unidad, SUM(vi.cantidad) cantidad,
+                         SUM(vi.cantidad*vi.precio_unitario) total
+                         FROM venta_items vi JOIN ventas v ON v.id=vi.venta_id
+                         JOIN productos p ON p.id=vi.producto_id
+                         WHERE v.evento_id=? GROUP BY p.id ORDER BY total DESC""", (evento_id,)).fetchall()
+    gastos = db.execute("SELECT * FROM gastos WHERE evento_id=? ORDER BY fecha_hora ASC, id ASC", (evento_id,)).fetchall()
+    perdidas = db.execute("""SELECT COALESCE(SUM(m.cantidad*COALESCE(m.costo_unitario,p.costo)),0)
+                            FROM movimientos m JOIN productos p ON p.id=m.producto_id
+                            WHERE m.evento_id=? AND m.tipo='perdida'""", (evento_id,)).fetchone()[0]
+    recaudacion = sum(v["total"] for v in ventas)
+    total_gastos = sum(g["monto"] for g in gastos)
+    bono = evento["bono_rebelion"] or 0
+    resultado = recaudacion - perdidas - total_gastos + bono
+    efectivo = sum(v["total"] for v in ventas if v["medio_pago"] == "efectivo")
+    transferencia = sum(v["total"] for v in ventas if v["medio_pago"] == "transferencia")
+    return render_template("ticket_evento.html", evento=evento, items=items, gastos=gastos,
+                           recaudacion=recaudacion, total_gastos=total_gastos, perdidas=perdidas,
+                           bono=bono, resultado=resultado, efectivo=efectivo, transferencia=transferencia,
+                           ventas=ventas)
+
+
 @app.route("/eventos/<int:evento_id>/responsables", methods=["POST"])
 def agregar_responsable(evento_id):
     nombre = request.form.get("nombre", "").strip()
@@ -725,16 +888,37 @@ def nueva_venta(evento_id):
                 VALUES(?,?,?,?,?)""", (venta_id, p["id"], cantidad, costo_venta, p["precio"]))
             if p["modo_stock"] != "libre":
                 db.execute("UPDATE productos SET stock=stock-? WHERE id=?", (stock_consumido, p["id"]))
-                db.execute("""INSERT INTO movimientos(producto_id,tipo,cantidad,motivo,evento_id,costo_unitario)
-                             VALUES (?,'venta',?,'Venta en evento',?,?)""",
-                           (p["id"], stock_consumido, evento_id, p["costo"]))
+            # El movimiento se registra SIEMPRE (antes se omitía por completo
+            # para productos de disponibilidad libre, así que esas ventas no
+            # quedaban en /movimientos ni en su exportación a Excel).
+            # "cantidad" (no "stock_consumido") y "costo_venta" (no el costo
+            # crudo del producto) son los valores correctos acá: antes, para
+            # productos con rendimiento, se guardaba la cantidad convertida a
+            # la unidad de stock (ej: 0,21 botella) pero la pantalla la
+            # etiquetaba como unidad de venta ("0,21 vaso"), y el costo
+            # unitario quedaba sin dividir por el rendimiento.
+            db.execute("""INSERT INTO movimientos(producto_id,tipo,cantidad,motivo,evento_id,costo_unitario)
+                         VALUES (?,'venta',?,'Venta en evento',?,?)""",
+                       (p["id"], cantidad, evento_id, costo_venta))
         db.commit()
         flash("Venta registrada correctamente.", "success")
+        if request.form.get("imprimir_automatico") == "1":
+            return redirect(url_for("ticket_venta", venta_id=venta_id))
         # Volver a la pantalla de venta permite registrar operaciones en cadena sin ir y venir.
         return redirect(url_for("nueva_venta", evento_id=evento_id))
 
     productos = db.execute("SELECT * FROM productos WHERE activo=1 ORDER BY nombre").fetchall()
     return render_template("venta.html", evento=evento, productos=productos)
+
+
+@app.route("/ventas/<int:venta_id>/ticket")
+def ticket_venta(venta_id):
+    db = get_conn()
+    venta = db.execute("SELECT v.*,e.nombre evento_nombre,e.fecha evento_fecha FROM ventas v JOIN eventos e ON e.id=v.evento_id WHERE v.id=?", (venta_id,)).fetchone()
+    if not venta:
+        return "Venta no encontrada", 404
+    items = db.execute("SELECT p.nombre,p.unidad_venta unidad,vi.cantidad,vi.precio_unitario,vi.cantidad*vi.precio_unitario total FROM venta_items vi JOIN productos p ON p.id=vi.producto_id WHERE vi.venta_id=? ORDER BY vi.id", (venta_id,)).fetchall()
+    return render_template("ticket_venta.html", venta=venta, items=items)
 
 
 @app.route("/eventos/<int:evento_id>/perdida", methods=["GET", "POST"])
@@ -765,15 +949,23 @@ def nueva_perdida(evento_id):
             return redirect(request.url)
 
         rendimiento = p["rendimiento"] if p["rendimiento"] and p["rendimiento"] > 0 else 1
-        stock_consumido = cantidad / rendimiento if p["modo_stock"] == "rendimiento" else cantidad
+        es_rendimiento = p["modo_stock"] == "rendimiento"
+        stock_consumido = cantidad / rendimiento if es_rendimiento else cantidad
+        costo_venta = (p["costo"] / rendimiento) if es_rendimiento else p["costo"]
         if p["stock"] < stock_consumido:
             flash(f"No hay suficiente disponibilidad de {p['nombre']}.", "danger")
             return redirect(request.url)
 
         db.execute("UPDATE productos SET stock=stock-? WHERE id=?", (stock_consumido, producto_id))
+        # "cantidad" (unidad de venta, ej: vasos) y "costo_venta" (costo ya
+        # dividido por el rendimiento) — no "stock_consumido" ni el costo
+        # crudo — para que coincidan con la unidad que se muestra en
+        # /movimientos (unidad_venta para pérdidas). El total en pesos de la
+        # pérdida (cantidad × costo) da lo mismo en ambos esquemas, pero antes
+        # el número y la etiqueta de unidad mostrados no coincidían entre sí.
         db.execute("""INSERT INTO movimientos(producto_id,tipo,cantidad,motivo,evento_id,costo_unitario)
                       VALUES (?,'perdida',?,?,?,?)""",
-                   (producto_id, stock_consumido, motivo, evento_id, p["costo"]))
+                   (producto_id, cantidad, motivo, evento_id, costo_venta))
         db.commit()
         flash("Pérdida registrada. Su costo se descuenta del resultado del evento.", "warning")
         return redirect(url_for("evento", evento_id=evento_id))
@@ -791,9 +983,14 @@ def cerrar_evento(evento_id):
     if evento["estado"] == "cerrado":
         flash("El evento ya estaba cerrado.", "warning")
     else:
-        db.execute("UPDATE eventos SET estado='cerrado' WHERE id=?", (evento_id,))
+        bono = form_float("bono_rebelion", 0)
+        if bono is None or bono < 0:
+            flash("El Bono Rebelión debe ser un valor igual o mayor a cero.", "danger")
+            return redirect(url_for("evento", evento_id=evento_id))
+        db.execute("UPDATE eventos SET estado='cerrado', bono_rebelion=? WHERE id=?", (bono, evento_id))
         db.commit()
-        flash("Evento cerrado. Ahora podés registrar el Bono Rebelión de cierre.", "success")
+        flash("Evento cerrado. Se prepara el balance consolidado para imprimir.", "success")
+        return redirect(url_for("ticket_evento", evento_id=evento_id) + "?auto=1")
     return redirect(url_for("evento", evento_id=evento_id))
 
 
@@ -973,7 +1170,7 @@ def exportar_movimientos():
     for m in movs:
         ws.append([
             m["id"], m["fecha_hora"], m["producto"], m["tipo"].capitalize(),
-            m["cantidad"], m["unidad"], m["motivo"] or "", m["evento"] or "-"
+            round(m["cantidad"], 2), m["unidad"], m["motivo"] or "", m["evento"] or "-"
         ])
 
     _estilar_excel(ws, f"MOVIMIENTOS DEL MES ({mes})")
@@ -1019,7 +1216,14 @@ def exportar_evento(evento_id):
     total_recaudado = sum(v["total"] for v in ventas)
     total_perdidas = sum(p["costo_total"] for p in perdidas)
     margen_ventas = sum(p["margen"] for p in pv)
-    resultado = margen_ventas - total_perdidas + (evento["bono_rebelion"] or 0)
+    gastos_evento_export = db.execute(
+        "SELECT COALESCE(SUM(monto),0) FROM gastos WHERE evento_id=?", (evento_id,)
+    ).fetchone()[0]
+    # BUG corregido: acá no se restaban los gastos del evento, a diferencia
+    # del cálculo que se muestra en la pantalla del evento (resultado_evento
+    # en la ruta evento()). El Excel exportado daba un resultado más alto
+    # que el que veías en pantalla para el mismo evento.
+    resultado = margen_ventas - total_perdidas - gastos_evento_export + (evento["bono_rebelion"] or 0)
 
     wb = openpyxl.Workbook()
     ws_prod = wb.active

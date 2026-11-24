@@ -45,10 +45,10 @@
 </div>
 
 <div class="section">
-  <div class="page-header"><div><h2>Próximas actividades</h2><p class="muted">También podés eliminarlas desde acá.</p></div></div>
+  <div class="page-header"><div><h2>Próximas actividades</h2>{% if es_admin %}<p class="muted">También podés eliminarlas desde acá.</p>{% endif %}</div></div>
   {% if proximas %}
   <div class="responsive-table"><table><tr><th>Fecha</th><th>Horario</th><th>Actividad</th><th>Tipo</th><th>Notas</th><th></th></tr>
-  {% for a in proximas %}<tr><td>{{a['fecha']}}</td><td>{% if a['hora_inicio'] %}{{a['hora_inicio']}}{% if a['hora_fin'] %}–{{a['hora_fin']}}{% endif %}{% else %}—{% endif %}</td><td><strong>{{a['titulo']}}</strong></td><td>{{a['tipo']}}</td><td>{{a['notas'] or '—'}}</td><td><form method="POST" action="{{url_for('eliminar_actividad',actividad_id=a['id'])}}" onsubmit="return confirm('¿Eliminar esta actividad?')"><button class="button small danger-outline" type="submit">×</button></form></td></tr>{% endfor %}</table></div>
+  {% for a in proximas %}<tr><td>{{a['fecha']}}</td><td>{% if a['hora_inicio'] %}{{a['hora_inicio']}}{% if a['hora_fin'] %}–{{a['hora_fin']}}{% endif %}{% else %}—{% endif %}</td><td><strong>{{a['titulo']}}</strong></td><td>{{a['tipo']}}</td><td>{{a['notas'] or '—'}}</td>{% if es_admin %}<td><form method="POST" action="{{url_for('eliminar_actividad',actividad_id=a['id'])}}" onsubmit="return confirm('¿Eliminar esta actividad?')"><button class="button small danger-outline" type="submit">×</button></form></td>{% endif %}</tr>{% endfor %}</table></div>
   {% else %}<p class="muted">No hay actividades futuras cargadas.</p>{% endif %}
 </div>
 {% endblock %}

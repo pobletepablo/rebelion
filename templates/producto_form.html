@@ -2,9 +2,15 @@
 {% block title %}{{ 'Editar producto' if producto else 'Nuevo producto' }}{% endblock %}
 {% block content %}
 <h1>{{ 'Editar producto' if producto else 'Nuevo producto' }}</h1>
-<form method="POST" class="form">
+<form method="POST" class="form" enctype="multipart/form-data">
 <label>Nombre</label>
 <input name="nombre" required value="{{ producto['nombre'] if producto else '' }}" placeholder="Ej: Fernet / Vaso de fernet / Sandwich de bondiola">
+
+
+<label>Foto del producto (opcional)</label>
+{% if producto and producto["imagen"] %}<div class="product-image-preview"><img src="{{ url_for('static', filename='productos/' ~ producto['imagen']) }}" alt="Foto actual de {{ producto['nombre'] }}"><label><input type="checkbox" name="quitar_imagen" value="1"> Quitar foto actual</label></div>{% endif %}
+<input type="file" name="imagen" accept="image/jpeg,image/png,image/webp">
+<p class="hint">JPG, PNG o WEBP. Máximo 5 MB. La foto aparecerá en el botón del producto en la pantalla de ventas.</p>
 
 <label>Categoría</label>
 {% set cat_actual = producto['categoria'] if producto else '' %}

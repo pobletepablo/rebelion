@@ -44,9 +44,10 @@
 <div class="action-bar">
     <a class="button" href="{{url_for('nueva_venta',evento_id=evento['id'])}}">＋ Registrar venta</a>
     <a class="button secondary danger-outline" href="{{url_for('nueva_perdida',evento_id=evento['id'])}}">Registrar pérdida</a>
-    <form method="POST" action="{{url_for('cerrar_evento',evento_id=evento['id'])}}">
-        <button class="button danger" onclick="return confirm('¿Cerrar evento?')">Cerrar evento</button>
-    </form>
+    {% if es_admin %}<form method="POST" action="{{url_for('cerrar_evento',evento_id=evento['id'])}}" class="close-event-form">
+        <label>Bono Rebelión de cierre ($) <input type="number" name="bono_rebelion" min="0" step="0.01" value="0"></label>
+        <button class="button danger" onclick="return confirm('¿Cerrar el evento y generar el balance para imprimir?')">Cerrar evento e imprimir balance</button>
+    </form>{% endif %}
 </div>
 {% endif %}
 
@@ -111,11 +112,14 @@
 </div>
 
 <div class="section">
+    <div class="page-header"><div><h2>💸 Gastos del evento</h2><p class="muted">Los gastos quedan asociados directamente a este evento.</p></div><a class="button secondary" href="{{url_for('ticket_evento',evento_id=evento['id'])}}" target="_blank">🖨 Imprimir balance</a></div>
+    {% if evento["estado"] == "abierto" %}<form method="POST" action="{{url_for('nuevo_gasto_evento',evento_id=evento['id'])}}" class="inline-form event-expense-form"><input name="concepto" placeholder="Concepto" required><select name="categoria"><option>Materiales</option><option>Transporte</option><option>Comida</option><option>Evento</option><option>Impresiones</option><option>Otro</option></select><div class="input-prefix"><span>$</span><input type="number" name="monto" min="0.01" step="0.01" placeholder="Monto" required></div><input name="notas" placeholder="Nota (opcional)"><button class="button">＋ Registrar gasto</button></form>{% endif %}
+
+<div class="section">
     <div class="page-header">
         <div>
             <h2>💸 Gastos del evento</h2>
-            <p class="muted">Gastos de caja asociados exclusivamente a este evento.</p>
-        </div>
+            </div>
         <strong class="section-amount">{{total_gastos_evento|money}}</strong>
     </div>
     {% if gastos_evento %}
